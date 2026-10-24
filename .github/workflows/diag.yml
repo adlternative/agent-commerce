@@ -1,0 +1,13 @@
+name: diag
+on: [workflow_dispatch, push]
+jobs:
+  net:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node -v && npm -v
+      - run: curl -sS -m 20 -o /dev/null -w "%{http_code} %{time_total}\n" https://registry.npmjs.org/ || echo curl-failed
+      - run: npm ping --registry=https://registry.npmjs.org/ || echo ping-failed
