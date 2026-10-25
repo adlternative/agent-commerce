@@ -1,0 +1,8 @@
+import { describe, expect, it } from 'vitest'
+import { lat64Fn28 } from '../src/lib/lat64_28'
+
+describe('lat64Fn28', () => {
+  it('returns 28', () => {
+    expect(lat64Fn28()).toBe(28)
+  })
+})
