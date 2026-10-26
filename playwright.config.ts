@@ -1,13 +1,14 @@
 import { defineConfig, devices } from '@playwright/test'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { resolveE2ePorts } from './e2e/resolve-ports'
 
-const apiPort = Number(process.env.E2E_API_PORT ?? 8787)
-const webPort = Number(process.env.E2E_WEB_PORT ?? 5173)
+const { webPort, apiPort } = await resolveE2ePorts()
 const dataPath = process.env.E2E_DATA_PATH ?? join(tmpdir(), `agent-commerce-e2e-${process.pid}.json`)
 
 export default defineConfig({
   testDir: './e2e',
+  testMatch: /.*\.spec\.ts/,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -31,6 +32,10 @@ export default defineConfig({
         ...process.env,
         PORT: String(apiPort),
         DATA_PATH: dataPath,
+        E2E_PORTS_LOCKED: '1',
+        E2E_WEB_PORT: String(webPort),
+        E2E_API_PORT: String(apiPort),
+        PW_PORT: String(webPort),
       },
     },
     {
@@ -38,6 +43,13 @@ export default defineConfig({
       url: `http://127.0.0.1:${webPort}`,
       reuseExistingServer: false,
       timeout: 120_000,
+      env: {
+        ...process.env,
+        E2E_PORTS_LOCKED: '1',
+        E2E_WEB_PORT: String(webPort),
+        E2E_API_PORT: String(apiPort),
+        PW_PORT: String(webPort),
+      },
     },
   ],
 })

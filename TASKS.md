@@ -15,6 +15,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | W9-1 | healthz/readyz + 404 NOT_FOUND | In progress | Public probes; store RW readiness; unmatched → 404 before auth |
 | W9-2 | Metrics path cardinality cap | Queued | After W9-1 |
 | W9-3 | Agent scope split | Queued | After W9-1 |
+| W9-4 | Playwright free port | Done | [#643](https://github.com/adlternative/agent-commerce/pull/643) Prefer `PW_PORT` / auto-pick when occupied; `reuseExistingServer: false`; 31 files / 149 unit + 2 e2e |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.
