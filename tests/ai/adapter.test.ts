@@ -103,7 +103,7 @@ describe('AI HTTP adapter integration', () => {
       conventions: { idempotencyHeader: string }
     }
     expect(doc.conventions.idempotencyHeader).toBe('Idempotency-Key')
-    expect(doc.mcp.tools.length).toBe(16)
+    expect(doc.mcp.tools.length).toBe(17)
     expect(buildAiCommerceDiscovery().wellKnown).toBe('/.well-known/ai-commerce.json')
   })
 

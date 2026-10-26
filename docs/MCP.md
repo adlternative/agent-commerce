@@ -13,7 +13,7 @@ Also see [AI-INTEGRATION.md](./AI-INTEGRATION.md) for `/.well-known/ai-commerce.
 
 Data file defaults to `data/commerce.json` (`DATA_PATH` overrides).
 
-## Tools (16)
+## Tools (17)
 
 | Tool | Purpose |
 |------|---------|
@@ -33,18 +33,24 @@ Data file defaults to `data/commerce.json` (`DATA_PATH` overrides).
 | `upsert_product` | Merchant create/update |
 | `adjust_stock` | Merchant stock delta |
 | `list_orders` | Filter by customer/status |
+| `recommend_products` | MCP **sampling** (`createMessage`) recommendation; catalog fallback if client has no sampling |
 
 All money fields are **integer cents**. Write tools take `idempotencyKey`.
+
+Tool errors return `{ code, message, hint?, retryable, mcpErrorCode }` where `mcpErrorCode` is the mapped JSON-RPC code (`InvalidParams` / `InvalidRequest` / `InternalError`).
 
 ## Resources
 
 - `catalog://products` — active catalog JSON
-- `orders://{id}` — single order JSON
+- `products://{id}` — single product JSON (**list** + **completion** on `id`)
+- `orders://{id}` — single order JSON (**list** + **completion** on `id`)
+
+Missing ids throw MCP `InvalidParams` with domain body in `error.data`.
 
 ## Prompts
 
-- `shopping_assistant` — args: `goal`
-- `merchant_ops` — args: `task`
+- `shopping_assistant` — args: `goal` (completable suggestions); user + assistant turns with cents / idempotency rules
+- `merchant_ops` — args: `task` (completable); requires `check_inventory` after stock changes
 
 ## Cursor / client config (paste)
 

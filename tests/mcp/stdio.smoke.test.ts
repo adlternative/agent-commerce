@@ -98,7 +98,7 @@ describe('compiled MCP stdio handshake smoke', () => {
     if (dataDir) await rm(dataDir, { recursive: true, force: true })
   })
 
-  it('initialize + tools/list returns 16 tools', async () => {
+  it('initialize + tools/list returns 17 tools including recommend_products', async () => {
     child.stdin.write(
       encode({
         jsonrpc: '2.0',
@@ -106,7 +106,7 @@ describe('compiled MCP stdio handshake smoke', () => {
         method: 'initialize',
         params: {
           protocolVersion: '2024-11-05',
-          capabilities: {},
+          capabilities: { sampling: {} },
           clientInfo: { name: 'boot-smoke', version: '0.0.1' },
         },
       }),
@@ -139,10 +139,11 @@ describe('compiled MCP stdio handshake smoke', () => {
     expect(listed.id).toBe(2)
     expect(listed.error).toBeUndefined()
     const tools = (listed.result as { tools: { name: string }[] }).tools
-    expect(tools).toHaveLength(16)
+    expect(tools).toHaveLength(17)
     const names = tools.map((t) => t.name).sort()
     expect(names).toContain('search_products')
     expect(names).toContain('place_order')
     expect(names).toContain('upsert_product')
+    expect(names).toContain('recommend_products')
   })
 })

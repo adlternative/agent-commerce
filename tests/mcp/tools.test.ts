@@ -95,7 +95,7 @@ describe('MCP tool handlers', () => {
     expect(JSON.parse(cancelled.content[0]!.text).status).toBe('cancelled')
   })
 
-  it('returns structured tool error on oversell', async () => {
+  it('returns structured tool error on oversell with mcpErrorCode', async () => {
     const { commerce, product } = await seeded()
     const cartRes = await callTool(commerce, 'create_cart', {
       customerId: 'x',
@@ -109,8 +109,9 @@ describe('MCP tool handlers', () => {
       idempotencyKey: 'oversell',
     })
     expect(err).toMatchObject({ isError: true })
-    const body = JSON.parse(err.content[0]!.text) as { code: string }
+    const body = JSON.parse(err.content[0]!.text) as { code: string; mcpErrorCode: number }
     expect(body.code).toBe('INSUFFICIENT_STOCK')
+    expect(body.mcpErrorCode).toBe(-32600) // ErrorCode.InvalidRequest
   })
 
   it('supports merchant upsert + adjust + list_orders', async () => {

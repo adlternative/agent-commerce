@@ -128,12 +128,26 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
       audit: ['GET /api/agent/audit', 'GET /api/merchant/audit'],
     },
     mcp: {
-      tools: Object.entries(TOOL_DESCRIPTIONS).map(([name, description]) => ({
-        name,
-        description,
-      })),
-      resources: ['catalog://products', 'orders://{id}'],
+      tools: [
+        ...Object.entries(TOOL_DESCRIPTIONS).map(([name, description]) => ({
+          name,
+          description,
+        })),
+        {
+          name: 'recommend_products',
+          description:
+            'Ask the client LLM via MCP sampling for product recommendations; falls back to catalog context without sampling.',
+        },
+      ],
+      resources: ['catalog://products', 'products://{id}', 'orders://{id}'],
       prompts: ['shopping_assistant', 'merchant_ops'],
+      sampling: { tool: 'recommend_products', method: 'sampling/createMessage' },
+      errorMapping: {
+        domainBody: '{ code, message, hint?, retryable, mcpErrorCode }',
+        notFoundAndValidation: -32602,
+        businessRule: -32600,
+        internal: -32603,
+      },
       stdioCommand: 'npm run mcp',
     },
     openapi: '/openapi.json',

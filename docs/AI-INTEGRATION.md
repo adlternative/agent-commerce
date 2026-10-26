@@ -15,8 +15,13 @@ Document includes:
 - Idempotency-Key convention
 - Structured error shape + common `errorCodes`
 - HTTP route lists (customer / merchant / agent)
+<<<<<<< HEAD
 - MCP tool catalog (16), resources, prompts
 - Rate-limit algorithm (`token_bucket`) and audit query API
+=======
+- MCP tool catalog (17), resources (with completion), prompts, sampling, error mapping
+- Rate-limit algorithm (`token_bucket`) and audit path
+>>>>>>> d49421c (feat(w8): MCP resource templates, prompts, errors, sampling)
 
 ## Conventions
 
