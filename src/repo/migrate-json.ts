@@ -1,6 +1,7 @@
 import { access, readFile } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import { DomainError } from '../domain/errors.js'
+import { DEFAULT_RESERVATION_TTL_MS } from '../domain/inventory.js'
 import { emptyDb, type CommerceDb } from './types.js'
 import { SqliteRepository } from './sqlite-repository.js'
 
@@ -17,7 +18,17 @@ async function fileExists(path: string): Promise<boolean> {
 export async function readJsonCommerceDb(jsonPath: string): Promise<CommerceDb> {
   try {
     const raw = await readFile(jsonPath, 'utf8')
-    return { ...emptyDb(), ...(JSON.parse(raw) as CommerceDb) }
+    const data = { ...emptyDb(), ...(JSON.parse(raw) as CommerceDb) }
+    // Backfill W3 reservation TTL for legacy JSON snapshots.
+    data.reservations = data.reservations.map((r) => {
+      if (r.expiresAt) return r
+      const created = new Date(r.createdAt).getTime()
+      return {
+        ...r,
+        expiresAt: new Date(created + DEFAULT_RESERVATION_TTL_MS).toISOString(),
+      }
+    })
+    return data
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
     if (code === 'ENOENT') return emptyDb()

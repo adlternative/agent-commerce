@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS reservations (
   product_id TEXT NOT NULL,
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   status TEXT NOT NULL CHECK (status IN ('created', 'committed', 'released')),
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS carts (

@@ -8,7 +8,11 @@ import { DomainError } from '../domain/errors.js'
 const nodeRequire = createRequire(import.meta.url)
 const { DatabaseSync } = nodeRequire('node:sqlite') as typeof import('node:sqlite')
 import type { Product } from '../domain/product.js'
-import type { Reservation, StockLevel } from '../domain/inventory.js'
+import {
+  DEFAULT_RESERVATION_TTL_MS,
+  type Reservation,
+  type StockLevel,
+} from '../domain/inventory.js'
 import type { Cart } from '../domain/cart.js'
 import type { Promotion } from '../domain/promotion.js'
 import type { Order } from '../domain/order.js'
@@ -207,15 +211,21 @@ export class SqliteRepository implements CommerceRepository {
     const reservationRows = this.db
       .prepare('SELECT * FROM reservations')
       .all() as Array<Record<string, unknown>>
-    db.reservations = reservationRows.map(
-      (r): Reservation => ({
+    db.reservations = reservationRows.map((r): Reservation => {
+      const createdAt = String(r.created_at)
+      const expiresAt =
+        r.expires_at != null
+          ? String(r.expires_at)
+          : new Date(new Date(createdAt).getTime() + DEFAULT_RESERVATION_TTL_MS).toISOString()
+      return {
         id: String(r.id),
         productId: String(r.product_id),
         quantity: Number(r.quantity),
         status: r.status as Reservation['status'],
-        createdAt: String(r.created_at),
-      }),
-    )
+        createdAt,
+        expiresAt,
+      }
+    })
 
     const cartRows = this.db.prepare('SELECT * FROM carts').all() as Array<Record<string, unknown>>
     db.carts = cartRows.map((r): Cart => {
@@ -340,11 +350,14 @@ export class SqliteRepository implements CommerceRepository {
     }
 
     const insertReservation = this.db.prepare(`
-      INSERT INTO reservations (id, product_id, quantity, status, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO reservations (id, product_id, quantity, status, created_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
     for (const r of data.reservations) {
-      insertReservation.run(r.id, r.productId, r.quantity, r.status, r.createdAt)
+      const expiresAt =
+        r.expiresAt ??
+        new Date(new Date(r.createdAt).getTime() + DEFAULT_RESERVATION_TTL_MS).toISOString()
+      insertReservation.run(r.id, r.productId, r.quantity, r.status, r.createdAt, expiresAt)
     }
 
     const insertCart = this.db.prepare(`
