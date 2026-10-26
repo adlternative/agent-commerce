@@ -42,4 +42,10 @@ export interface CommerceRepository {
   read(): Promise<CommerceDb>
   /** Exclusive transaction: load → mutate → persist atomically. */
   transaction<T>(fn: (db: CommerceDb) => T | Promise<T>): Promise<T>
+  /**
+   * Read + write probe for GET /readyz.
+   * Must verify the underlying store is actually usable (not a no-op stub).
+   * Throws DomainError (`STORE_NOT_READY` / store read-write failures) on failure.
+   */
+  checkReady(): Promise<void>
 }

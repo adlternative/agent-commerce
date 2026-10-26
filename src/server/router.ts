@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { HttpMethod, RequestContext } from './http.js'
 import { readJsonBody, sendJson, getIdempotencyKey } from './http.js'
 import { authenticate, type AuthConfig, type Role, requireRole } from './auth.js'
-import { isDomainError } from '../domain/errors.js'
+import { DomainError, isDomainError } from '../domain/errors.js'
 import type { AuditLog } from '../ai/audit.js'
 import type { TokenBucket } from '../ai/rate-limit.js'
 import { buildAiCommerceDiscovery } from '../ai/well-known.js'
@@ -19,6 +19,8 @@ export type AiAdapters = {
 export type Observability = {
   logger?: Logger
   metrics?: HttpMetrics
+  /** When set, GET /readyz exercises this probe (must actually touch the store). */
+  readiness?: () => Promise<void>
 }
 
 type Route = {
@@ -65,6 +67,8 @@ function statusForCode(code: string): number {
       return 404
     case 'IDEMPOTENCY_KEY_REUSE':
       return 409
+    case 'STORE_NOT_READY':
+      return 503
     default:
       return 400
   }
@@ -115,12 +119,14 @@ export class Router {
   private ai: AiAdapters = {}
   private readonly logger: Logger
   private readonly metrics: HttpMetrics
+  private readonly readiness?: () => Promise<void>
 
   constructor(auth: AuthConfig, ai: AiAdapters = {}, obs: Observability = {}) {
     this.auth = auth
     this.ai = ai
     this.logger = obs.logger ?? createLogger({ service: 'agent-commerce' })
     this.metrics = obs.metrics ?? new HttpMetrics()
+    this.readiness = obs.readiness
   }
 
   getMetrics(): HttpMetrics {
@@ -173,8 +179,21 @@ export class Router {
         return
       }
 
-      if (method === 'GET' && url.pathname === '/health') {
-        metricPath = '/health'
+      // Public probes / docs — must bypass auth (and must be registered before matching).
+      if (method === 'GET' && (url.pathname === '/health' || url.pathname === '/healthz')) {
+        metricPath = url.pathname
+        sendJson(res, 200, { ok: true }, corsHeaders(traceId))
+        status = 200
+        return
+      }
+      if (method === 'GET' && url.pathname === '/readyz') {
+        metricPath = '/readyz'
+        if (!this.readiness) {
+          throw new DomainError('STORE_NOT_READY', 'readiness probe not configured', {
+            retryable: true,
+          })
+        }
+        await this.readiness()
         sendJson(res, 200, { ok: true }, corsHeaders(traceId))
         status = 200
         return
@@ -204,27 +223,11 @@ export class Router {
         return
       }
 
-      const actor = authenticate(req, this.auth)
-      actorLabel = actor.subject
-      roleLabel = actor.role
-      const rateKey = `${actor.role}:${actor.subject}`
-      try {
-        this.ai.rateLimit?.take(rateKey)
-      } catch (err) {
-        if (isDomainError(err) && err.code === 'RATE_LIMITED' && this.ai.rateLimit) {
-          const retryAfter = String(this.ai.rateLimit.retryAfterSec(rateKey))
-          status = 429
-          errorCode = 'RATE_LIMITED'
-          metricPath = url.pathname
-          sendErr(res, err, traceId, { 'retry-after': retryAfter })
-          return
-        }
-        throw err
-      }
-
+      // Resolve the route before auth so unmatched paths return 404 NOT_FOUND (not 401).
       const match = this.routes.find((r) => r.method === method && r.pattern.test(url.pathname))
       if (!match) {
         status = 404
+        errorCode = 'NOT_FOUND'
         metricPath = url.pathname
         sendJson(
           res,
@@ -239,6 +242,23 @@ export class Router {
         return
       }
       metricPath = match.pathTemplate
+
+      const actor = authenticate(req, this.auth)
+      actorLabel = actor.subject
+      roleLabel = actor.role
+      const rateKey = `${actor.role}:${actor.subject}`
+      try {
+        this.ai.rateLimit?.take(rateKey)
+      } catch (err) {
+        if (isDomainError(err) && err.code === 'RATE_LIMITED' && this.ai.rateLimit) {
+          const retryAfter = String(this.ai.rateLimit.retryAfterSec(rateKey))
+          status = 429
+          errorCode = 'RATE_LIMITED'
+          sendErr(res, err, traceId, { 'retry-after': retryAfter })
+          return
+        }
+        throw err
+      }
       requireRole(actor, match.roles)
 
       const m = match.pattern.exec(url.pathname)!

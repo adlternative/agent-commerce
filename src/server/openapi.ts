@@ -139,9 +139,40 @@ export function buildOpenApi() {
     paths: {
       '/health': {
         get: {
-          summary: 'Health check',
+          summary: 'Liveness (legacy alias of /healthz)',
           security: [],
           responses: ok({ type: 'object', properties: { ok: { type: 'boolean' } } }),
+        },
+      },
+      '/healthz': {
+        get: {
+          summary: 'Liveness probe (no auth)',
+          security: [],
+          responses: ok({ type: 'object', properties: { ok: { type: 'boolean' } } }),
+        },
+      },
+      '/readyz': {
+        get: {
+          summary: 'Readiness probe — verifies store is readable and writable (no auth)',
+          security: [],
+          responses: {
+            '200': {
+              description: 'OK',
+              content: {
+                'application/json': {
+                  schema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+                },
+              },
+            },
+            '503': {
+              description: 'Store not ready',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+          },
         },
       },
       '/metrics': {

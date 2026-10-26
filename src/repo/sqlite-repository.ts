@@ -140,6 +140,63 @@ export class SqliteRepository implements CommerceRepository {
     })
   }
 
+  /**
+   * Prove SQLite is readable and writable (for GET /readyz).
+   * Uses a dedicated readiness_probe row under BEGIN IMMEDIATE — not a no-op.
+   */
+  async checkReady(): Promise<void> {
+    try {
+      await this.runExclusive(() => {
+        const ping = this.db.prepare('SELECT 1 AS ok').get() as { ok: number } | undefined
+        if (!ping || ping.ok !== 1) {
+          throw new Error('sqlite SELECT 1 failed')
+        }
+        this.db.exec('BEGIN IMMEDIATE')
+        try {
+          this.db.exec(`
+            CREATE TABLE IF NOT EXISTS readiness_probe (
+              id INTEGER PRIMARY KEY CHECK (id = 1),
+              checked_at TEXT NOT NULL
+            );
+          `)
+          const checkedAt = new Date().toISOString()
+          this.db
+            .prepare(
+              `INSERT INTO readiness_probe (id, checked_at) VALUES (1, ?)
+               ON CONFLICT(id) DO UPDATE SET checked_at = excluded.checked_at`,
+            )
+            .run(checkedAt)
+          const row = this.db.prepare('SELECT checked_at FROM readiness_probe WHERE id = 1').get() as
+            | { checked_at: string }
+            | undefined
+          if (!row?.checked_at) {
+            throw new Error('sqlite readiness probe row missing after write')
+          }
+          this.db.exec('COMMIT')
+        } catch (err) {
+          try {
+            this.db.exec('ROLLBACK')
+          } catch {
+            /* ignore */
+          }
+          throw err
+        }
+      })
+    } catch (err) {
+      if (err instanceof DomainError) {
+        throw new DomainError('STORE_NOT_READY', err.message, {
+          cause: err,
+          retryable: true,
+          hint: err.hint,
+        })
+      }
+      throw new DomainError('STORE_NOT_READY', 'sqlite store not readable/writable', {
+        cause: err,
+        retryable: true,
+      })
+    }
+  }
+
   private runExclusive<T>(fn: () => T | Promise<T>): Promise<T> {
     const run = this.chain.then(() => fn())
     this.chain = run.then(

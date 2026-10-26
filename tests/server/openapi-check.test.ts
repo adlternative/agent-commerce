@@ -22,6 +22,8 @@ describe('openapi drift check', () => {
 
     expect(onDisk.paths['/metrics']?.get).toBeTruthy()
     expect(onDisk.paths['/health']?.get).toBeTruthy()
+    expect(onDisk.paths['/healthz']?.get).toBeTruthy()
+    expect(onDisk.paths['/readyz']?.get).toBeTruthy()
     expect(onDisk.paths['/api/customer/orders']?.post).toBeTruthy()
     expect(onDisk.paths['/api/merchant/products']?.post).toBeTruthy()
     expect(onDisk.paths['/api/agent/products']?.get).toBeTruthy()

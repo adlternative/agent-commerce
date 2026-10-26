@@ -6,6 +6,8 @@ import { buildOpenApi } from '../../src/server/openapi.js'
 /** Paths that must remain documented — OpenAPI regression guard. */
 const REQUIRED_PATH_OPS: Array<{ path: string; method: string }> = [
   { path: '/health', method: 'get' },
+  { path: '/healthz', method: 'get' },
+  { path: '/readyz', method: 'get' },
   { path: '/metrics', method: 'get' },
   { path: '/api/customer/products', method: 'get' },
   { path: '/api/customer/orders', method: 'post' },
