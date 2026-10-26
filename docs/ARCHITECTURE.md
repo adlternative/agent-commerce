@@ -9,6 +9,8 @@ Agent Commerce is an AI-native commerce stack: human customers, merchants, and A
 3. **Service** (`src/services/commerce.ts`) — use-cases; every write takes an **Idempotency-Key**.
 4. **HTTP** (`src/server/*`) — `node:http` router, Bearer role auth, OpenAPI 3.1.
 5. **MCP** (`src/mcp/*`) — 16 tools + resources + prompts on the same `CommerceService`.
+
+Backend runtime is **compiled** (`npm run build:server` → `dist-server/`) so NodeNext-style `.js` import specifiers resolve to real files. Do not run `src/**/*.ts` with `--experimental-strip-types` for server/MCP entrypoints.
 6. **AI adapter** (`src/ai/*`) — well-known discovery, cursor pagination, audit log, token-bucket rate limit.
 7. **UIs** — customer storefront (`src/App.tsx`) and merchant console (`src/merchant/MerchantApp.tsx`).
 
