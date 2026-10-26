@@ -2,6 +2,8 @@
 
 The MCP server exposes the same `CommerceService` used by the HTTP API so agents shop and operate inventory without scraping HTML.
 
+Also see [AI-INTEGRATION.md](./AI-INTEGRATION.md) for `/.well-known/ai-commerce.json` discovery.
+
 ## Transports
 
 | Mode | Command | Notes |

@@ -1,28 +1,32 @@
 # Architecture
 
-Agent Commerce is an AI-native commerce core: human customers, merchants, and AI agents share one domain model exposed later via HTTP and MCP.
+Agent Commerce is an AI-native commerce stack: human customers, merchants, and AI agents share one domain model exposed via HTTP, MCP, and React UIs.
 
 ## Layers
 
-1. **Domain** (`src/domain/*`) — pure types, zod schemas, state machines, inventory math. Amounts are always integer **cents (分)**. Errors serialize to `{ code, message, hint?, retryable }`.
-2. **Repository** (`src/repo/*`) — persistence port (`CommerceRepository`) with a JSON-file adapter and an in-memory adapter for tests.
-3. **Service** (`src/services/commerce.ts`) — use-cases (cart, place order, pay, ship, return). Every write accepts an **Idempotency-Key**.
+1. **Domain** (`src/domain/*`) — zod schemas, inventory math, cart/promotion quoting, order state machine, payment/return. Amounts are integer **cents**. Errors are `DomainError` → `{ code, message, hint?, retryable }`.
+2. **Repository** (`src/repo/*`) — `CommerceRepository` port with JSON-file and in-memory adapters.
+3. **Service** (`src/services/commerce.ts`) — use-cases; every write takes an **Idempotency-Key**.
+4. **HTTP** (`src/server/*`) — `node:http` router, Bearer role auth, OpenAPI 3.1.
+5. **MCP** (`src/mcp/*`) — 16 tools + resources + prompts on the same `CommerceService`.
+6. **AI adapter** (`src/ai/*`) — well-known discovery, cursor pagination, audit log, token-bucket rate limit.
+7. **UIs** — customer storefront (`src/App.tsx`) and merchant console (`src/merchant/MerchantApp.tsx`).
 
 ## Storage: intentional JSON simplification
 
-The default store is a **single JSON file** (`JsonFileRepository`):
+Default persistence is a **single JSON file** (`JsonFileRepository`):
 
-- Zero native dependencies; CI and Cloud Agents can run without SQLite tooling.
-- Writes go through an in-process mutex and atomic rename.
-- Suitable for demos, evals, and single-process local runs — **not** multi-node production.
+- Zero native dependencies; CI and Cloud Agents run without SQLite tooling.
+- Writes use an in-process mutex + atomic rename.
+- Fine for demos, evals, and single-process local runs — **not** multi-node production.
 
 ### Upgrade path to SQLite
 
 1. Keep `CommerceRepository` as the only persistence port.
-2. Add `SqliteRepository` implementing the same `read` / `transaction` methods (or finer-grained methods once traffic demands it).
-3. Map collections (`products`, `stock`, `orders`, …) to tables; put idempotency records in a unique `(scope, key)` index.
-4. Move inventory reserve/commit into SQL transactions (`UPDATE … WHERE on_hand - reserved >= ?`) so multi-process safety matches the in-process mutex.
-5. Swap construction site (HTTP/MCP bootstrap) to inject `SqliteRepository`; domain and service code stay unchanged.
+2. Add `SqliteRepository` with the same `read` / `transaction` (or finer methods later).
+3. Map collections to tables; unique index on idempotency `(scope, key)`.
+4. Push reserve/commit into SQL `UPDATE … WHERE on_hand - reserved >= ?`.
+5. Inject `SqliteRepository` at HTTP/MCP bootstrap; domain/service stay unchanged.
 
 ## Order state machine
 
@@ -33,8 +37,12 @@ created → paid → shipped → delivered
             └─ cancelled / refunded
 ```
 
-Stock is **reserved** at `place_order`, **committed** (deducted) at `pay_order`, **released** on cancel-before-pay, and **restocked** on cancel-after-pay / return refund.
+- `place_order` **reserves** stock  
+- `pay_order` **commits** (deducts)  
+- cancel-before-pay **releases**; cancel-after-pay / return **restocks**
 
-## Concurrency
+## Concurrency & AI safety
 
-`InventoryLedger` (unit tests) and repository `transaction()` serialize mutations so concurrent reserves cannot oversell within one process.
+- Repository `transaction()` serializes writes in-process (oversell-safe for one Node process).
+- Token bucket rate limit per `role:subject`.
+- Audit ring buffer records method/path/status/idempotency key for agent debugging.

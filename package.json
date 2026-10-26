@@ -9,13 +9,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
     "server": "node --experimental-strip-types --experimental-transform-types src/server/index.ts",
     "dev:all": "echo 'Run terminal A: npm run server  |  terminal B: npm run dev'",
     "mcp": "node --experimental-strip-types --experimental-transform-types src/mcp/stdio.ts",
     "mcp:http": "node --experimental-strip-types --experimental-transform-types src/mcp/http.ts",
-    "openapi": "vitest run tests/server/openapi.test.ts"
+    "openapi": "vitest run tests/server/openapi.test.ts",
+    "openapi:check": "vitest run tests/server/openapi-check.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
