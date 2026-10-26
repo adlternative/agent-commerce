@@ -11,4 +11,16 @@ describe('openapi drift check', () => {
     ) as unknown
     expect(onDisk).toEqual(generated)
   })
+
+  it('committed OpenAPI still documents /metrics and core commerce ops', () => {
+    const onDisk = JSON.parse(
+      readFileSync(join(process.cwd(), 'docs', 'openapi.json'), 'utf8'),
+    ) as { paths: Record<string, Record<string, unknown>> }
+
+    expect(onDisk.paths['/metrics']?.get).toBeTruthy()
+    expect(onDisk.paths['/health']?.get).toBeTruthy()
+    expect(onDisk.paths['/api/customer/orders']?.post).toBeTruthy()
+    expect(onDisk.paths['/api/merchant/products']?.post).toBeTruthy()
+    expect(onDisk.paths['/api/agent/products']?.get).toBeTruthy()
+  })
 })

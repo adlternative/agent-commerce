@@ -61,11 +61,18 @@ Mirrors shopping + merchant ops for LLM clients (same `CommerceService`). Extra:
 
 ## Public
 
-| Method | Path |
-|--------|------|
-| GET | `/health` |
-| GET | `/openapi.json` |
-| GET | `/.well-known/ai-commerce.json` |
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/health` | liveness |
+| GET | `/metrics` | Prometheus text (`http_requests_total`, duration sum/count) |
+| GET | `/openapi.json` | OpenAPI 3.1 document |
+| GET | `/.well-known/ai-commerce.json` | AI capability discovery |
+
+## Observability
+
+- Every response includes **`X-Trace-Id`**. Clients may send `X-Trace-Id` or W3C `traceparent` to continue a trace; otherwise the server mints one.
+- Structured JSON logs (stdout) carry the same `traceId` on `request.start` / `request.end` / `request.error`.
+- Audit events (`GET /api/agent/audit`) include `traceId` when recorded from HTTP.
 
 ## Cursor pagination
 

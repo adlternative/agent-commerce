@@ -4,13 +4,15 @@ import { dirname } from 'node:path'
 import { CommerceService } from '../services/commerce.js'
 import type { CommerceRepository } from '../repo/types.js'
 import { MemoryRepository, JsonFileRepository } from '../repo/json-repository.js'
-import { Router, type AiAdapters } from './router.js'
+import { Router, type AiAdapters, type Observability } from './router.js'
 import { DEFAULT_AUTH, type AuthConfig } from './auth.js'
 import { registerRoutes } from './routes.js'
 import { buildOpenApi } from './openapi.js'
 import { seedDemoCatalog } from './seed.js'
 import { TokenBucket } from '../ai/rate-limit.js'
 import { AuditLog } from '../ai/audit.js'
+import { createLogger, type Logger } from './logger.js'
+import { HttpMetrics } from './metrics.js'
 
 export type CreateServerOptions = {
   repo?: CommerceRepository
@@ -22,6 +24,8 @@ export type CreateServerOptions = {
   ai?: AiAdapters
   /** Override default rate limit (capacity 60, refill 1/sec). */
   rateLimit?: { capacity: number; refillPerSec: number }
+  /** Structured logger / metrics overrides (tests). */
+  observability?: Observability
 }
 
 export type AppServer = {
@@ -29,6 +33,9 @@ export type AppServer = {
   commerce: CommerceService
   audit: AuditLog
   rateLimit: TokenBucket
+  metrics: HttpMetrics
+  logger: Logger
+  router: Router
   listen: (port?: number) => Promise<{ port: number; baseUrl: string }>
   close: () => Promise<void>
 }
@@ -40,7 +47,15 @@ export function createAppServer(opts: CreateServerOptions = {}): AppServer {
   const rateLimit =
     opts.ai?.rateLimit ??
     new TokenBucket(opts.rateLimit?.capacity ?? 60, opts.rateLimit?.refillPerSec ?? 1)
-  const router = new Router(opts.auth ?? DEFAULT_AUTH, { audit, rateLimit })
+  const logger =
+    opts.observability?.logger ??
+    createLogger(
+      { service: 'agent-commerce' },
+      // Vitest sets VITEST=true; keep default request logs out of unit-test noise.
+      process.env.VITEST ? { sink: () => {} } : undefined,
+    )
+  const metrics = opts.observability?.metrics ?? new HttpMetrics()
+  const router = new Router(opts.auth ?? DEFAULT_AUTH, { audit, rateLimit }, { logger, metrics })
   router.setOpenApiProvider(() => buildOpenApi())
   registerRoutes(router, commerce, { audit })
 
@@ -53,6 +68,9 @@ export function createAppServer(opts: CreateServerOptions = {}): AppServer {
     commerce,
     audit,
     rateLimit,
+    metrics,
+    logger,
+    router,
     async listen(port = 0) {
       if (opts.openApiOutPath) {
         await mkdir(dirname(opts.openApiOutPath), { recursive: true })

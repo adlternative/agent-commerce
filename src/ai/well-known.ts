@@ -33,6 +33,11 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
         errorCode: 'RATE_LIMITED',
       },
       audit: { path: '/api/agent/audit', description: 'Recent request audit events' },
+      observability: {
+        traceHeader: 'x-trace-id',
+        metricsPath: '/metrics',
+        structuredLogs: 'json_lines',
+      },
     },
     errorCodes: [
       'UNAUTHORIZED',
