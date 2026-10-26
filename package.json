@@ -10,7 +10,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "server": "node --experimental-strip-types --experimental-transform-types src/server/index.ts",
+    "openapi": "vitest run tests/server/openapi.test.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
