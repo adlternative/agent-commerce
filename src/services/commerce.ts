@@ -14,6 +14,7 @@ import {
   type Product,
   type UpsertProductInput,
 } from '../domain/product.js'
+import { rankProducts, type ScoredProduct } from '../domain/search.js'
 import {
   adjustOnHand,
   availableQty,
@@ -87,6 +88,17 @@ export class CommerceService {
   ): Promise<Product[]> {
     const db = await this.repo.read()
     return searchProducts(db.products, {
+      ...query,
+      activeOnly: query.activeOnly !== false,
+    })
+  }
+
+  /** Ranked catalog search (FTS + Chinese fallback). Used for stable keyset pagination. */
+  async rankProducts(
+    query: { q?: string; tag?: string; activeOnly?: boolean } = {},
+  ): Promise<ScoredProduct[]> {
+    const db = await this.repo.read()
+    return rankProducts(db.products, {
       ...query,
       activeOnly: query.activeOnly !== false,
     })

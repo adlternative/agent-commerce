@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { CentsSchema } from './money.js'
 import { DomainError } from './errors.js'
+import { rankProducts } from './search.js'
 
 export const ProductSchema = z.object({
   id: z.string().min(1),
@@ -45,18 +46,5 @@ export function searchProducts(
   products: readonly Product[],
   query: { q?: string; tag?: string; activeOnly?: boolean },
 ): Product[] {
-  const q = query.q?.trim().toLowerCase()
-  const tag = query.tag?.trim().toLowerCase()
-  return products.filter((p) => {
-    if (query.activeOnly !== false && !p.active) return false
-    if (tag && !p.tags.some((t) => t.toLowerCase() === tag)) return false
-    if (!q) return true
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.sku.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q) ||
-      p.agentNotes.toLowerCase().includes(q) ||
-      p.tags.some((t) => t.toLowerCase().includes(q))
-    )
-  })
+  return rankProducts(products, query).map((h) => h.product)
 }

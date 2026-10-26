@@ -25,6 +25,12 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
         style: 'cursor',
         params: ['cursor', 'limit'],
         response: ['items', 'nextCursor', 'hasMore'],
+        productSearch: {
+          ranking: 'full_text',
+          fields: ['name', 'sku', 'tags', 'description', 'agentNotes'],
+          chineseFallback: 'cjk_character_majority',
+          cursor: 'stable_keyset_score_id',
+        },
       },
       rateLimit: {
         algorithm: 'token_bucket',
