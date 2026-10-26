@@ -14,6 +14,8 @@ const REQUIRED_PATH_OPS: Array<{ path: string; method: string }> = [
   { path: '/api/merchant/orders', method: 'get' },
   { path: '/api/agent/products', method: 'get' },
   { path: '/api/agent/orders', method: 'post' },
+  { path: '/api/agent/audit', method: 'get' },
+  { path: '/api/merchant/audit', method: 'get' },
 ]
 
 describe('openapi', () => {
@@ -22,6 +24,7 @@ describe('openapi', () => {
     expect(doc.openapi).toBe('3.1.0')
     expect(doc.info.title).toBe('Agent Commerce API')
     expect(doc.components.securitySchemes.BearerAuth).toBeTruthy()
+    expect(doc.components.securitySchemes.ApiKeyAuth).toBeTruthy()
 
     for (const { path, method } of REQUIRED_PATH_OPS) {
       const item = doc.paths[path as keyof typeof doc.paths] as Record<string, unknown> | undefined

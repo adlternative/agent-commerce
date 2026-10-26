@@ -31,13 +31,14 @@ type Route = {
   handler: RouteHandler
 }
 
-function corsHeaders(traceId?: string): Record<string, string> {
+function corsHeaders(traceId?: string, extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = {
     'access-control-allow-origin': '*',
     'access-control-allow-headers':
-      'authorization, content-type, idempotency-key, x-trace-id, traceparent',
+      'authorization, content-type, idempotency-key, x-api-key, x-trace-id, traceparent',
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'access-control-expose-headers': 'x-trace-id',
+    'access-control-expose-headers': 'x-trace-id, retry-after',
+    ...extra,
   }
   if (traceId) {
     headers['x-trace-id'] = traceId
@@ -69,15 +70,20 @@ function statusForCode(code: string): number {
   }
 }
 
-function sendErr(res: ServerResponse, err: unknown, traceId: string): void {
+function sendErr(
+  res: ServerResponse,
+  err: unknown,
+  traceId: string,
+  extraHeaders?: Record<string, string>,
+): void {
   if (res.headersSent) return
   if (isDomainError(err)) {
-    sendJson(res, statusForCode(err.code), err.toJSON(), corsHeaders(traceId))
+    sendJson(res, statusForCode(err.code), err.toJSON(), corsHeaders(traceId, extraHeaders))
     return
   }
   if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'ZodError') {
     const z = err as unknown as { issues: { message: string; path: (string | number)[] }[] }
-    sendJson(
+  sendJson(
       res,
       400,
       {
@@ -86,7 +92,7 @@ function sendErr(res: ServerResponse, err: unknown, traceId: string): void {
         hint: z.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
         retryable: false,
       },
-      corsHeaders(traceId),
+      corsHeaders(traceId, extraHeaders),
     )
     return
   }
@@ -98,7 +104,7 @@ function sendErr(res: ServerResponse, err: unknown, traceId: string): void {
       message: err instanceof Error ? err.message : 'internal error',
       retryable: true,
     },
-    corsHeaders(traceId),
+    corsHeaders(traceId, extraHeaders),
   )
 }
 
@@ -201,7 +207,20 @@ export class Router {
       const actor = authenticate(req, this.auth)
       actorLabel = actor.subject
       roleLabel = actor.role
-      this.ai.rateLimit?.take(`${actor.role}:${actor.subject}`)
+      const rateKey = `${actor.role}:${actor.subject}`
+      try {
+        this.ai.rateLimit?.take(rateKey)
+      } catch (err) {
+        if (isDomainError(err) && err.code === 'RATE_LIMITED' && this.ai.rateLimit) {
+          const retryAfter = String(this.ai.rateLimit.retryAfterSec(rateKey))
+          status = 429
+          errorCode = 'RATE_LIMITED'
+          metricPath = url.pathname
+          sendErr(res, err, traceId, { 'retry-after': retryAfter })
+          return
+        }
+        throw err
+      }
 
       const match = this.routes.find((r) => r.method === method && r.pattern.test(url.pathname))
       if (!match) {

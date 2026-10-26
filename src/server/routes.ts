@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { CommerceService } from '../services/commerce.js'
 import type { Router } from './router.js'
+import type { RequestContext } from './http.js'
 import { DomainError } from '../domain/errors.js'
 import { PromotionSchema } from '../domain/promotion.js'
 import { UpsertProductInputSchema } from '../domain/product.js'
@@ -279,11 +280,32 @@ export function registerRoutes(
     return commerce.upsertPromotion(body, requireKey(ctx.idempotencyKey))
   })
 
+  // ── Audit query (agent + merchant) ───────────────────────
+  const auditHandler = async (ctx: RequestContext) => {
+    const limit = ctx.query.get('limit') ? Number(ctx.query.get('limit')) : undefined
+    const statusRaw = ctx.query.get('status')
+    const status = statusRaw !== null && statusRaw !== '' ? Number(statusRaw) : undefined
+    const events =
+      deps.audit?.query({
+        limit,
+        actor: ctx.query.get('actor') ?? undefined,
+        role: ctx.query.get('role') ?? undefined,
+        method: ctx.query.get('method') ?? undefined,
+        pathPrefix: ctx.query.get('pathPrefix') ?? undefined,
+        pathContains: ctx.query.get('pathContains') ?? undefined,
+        status: status !== undefined && Number.isFinite(status) ? status : undefined,
+        code: ctx.query.get('code') ?? undefined,
+        traceId: ctx.query.get('traceId') ?? undefined,
+        since: ctx.query.get('since') ?? undefined,
+        until: ctx.query.get('until') ?? undefined,
+      }) ?? []
+    return { events, count: events.length }
+  }
+
+  router.on('GET', '/api/agent/audit', ['agent', 'merchant'], auditHandler)
+  router.on('GET', '/api/merchant/audit', ['merchant', 'agent'], auditHandler)
+
   // ── Agent (aliases for LLM-friendly paths; same handlers) ─
-  router.on('GET', '/api/agent/audit', ['agent', 'merchant'], async (ctx) => {
-    const limit = ctx.query.get('limit') ? Number(ctx.query.get('limit')) : 50
-    return { events: deps.audit?.list(limit) ?? [] }
-  })
 
   router.on('GET', '/api/agent/products', ['agent'], async (ctx) => {
     const ranked = await commerce.rankProducts({

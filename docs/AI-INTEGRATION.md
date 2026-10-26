@@ -10,12 +10,13 @@ GET /.well-known/ai-commerce.json
 
 Document includes:
 
-- Bearer token roles
+- Bearer opaque tokens, API keys (`X-API-Key`), and HS256 JWT (`sub` + `role`)
+- Three-role RBAC (customer / merchant / agent)
 - Idempotency-Key convention
 - Structured error shape + common `errorCodes`
 - HTTP route lists (customer / merchant / agent)
 - MCP tool catalog (16), resources, prompts
-- Rate-limit algorithm (`token_bucket`) and audit path
+- Rate-limit algorithm (`token_bucket`) and audit query API
 
 ## Conventions
 
@@ -23,9 +24,10 @@ Document includes:
 2. **Idempotency-Key** — required on every write; same key + same payload replays; same key + different payload → `409 IDEMPOTENCY_KEY_REUSE`.  
 3. **Errors** — `{ code, message, hint?, retryable }`. Respect `retryable` (e.g. `RATE_LIMITED`).  
 4. **Pagination** — `cursor` + `limit` → `{ items, nextCursor, hasMore }`.  
-5. **Audit** — `GET /api/agent/audit` for recent requests (method, path, status, duration, idempotency key, `traceId`).  
-6. **Rate limit** — per `role:subject` token bucket; `429` + `RATE_LIMITED` when exhausted.  
-7. **Tracing** — send or read `X-Trace-Id` on every call; scrape `GET /metrics` for request counters.
+5. **Audit** — `GET /api/agent/audit` (or `/api/merchant/audit`) with filters: `actor`, `role`, `method`, `pathPrefix`, `pathContains`, `status`, `code`, `traceId`, `since`, `until`, `limit`.  
+6. **Rate limit** — per `role:subject` token bucket; `429` + `RATE_LIMITED` + `Retry-After` when exhausted.  
+7. **Tracing** — send or read `X-Trace-Id` on every call; scrape `GET /metrics` for request counters.  
+8. **Auth** — prefer API key or short-lived JWT for agents; demo opaque tokens remain valid.
 
 ## Suggested agent flows
 
