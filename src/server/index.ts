@@ -8,6 +8,7 @@ const openApiOut = join(process.cwd(), 'docs', 'openapi.json')
 const app = createAppServer({
   repo: new JsonFileRepository(dataPath),
   openApiOutPath: openApiOut,
+  seedDemo: true,
 })
 
 const { baseUrl } = await app.listen(port)
