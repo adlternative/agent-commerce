@@ -4,13 +4,13 @@ Base URL (local): `http://127.0.0.1:8787`
 OpenAPI 3.1: [`openapi.json`](./openapi.json) · `GET /openapi.json`  
 Auth (any one):
 
-| Scheme | Credential | Role |
+| Scheme | Credential | Role / scopes |
 |--------|------------|------|
-| `Authorization: Bearer` | `customer-token` / `merchant-token` / `agent-token` | opaque demo tokens |
-| `Authorization: Bearer` | HS256 JWT `{ sub, role, iat?, exp? }` | minted with server JWT secret |
-| `X-API-Key` or `Authorization: ApiKey` | `customer-key` / `merchant-key` / `agent-key` | API keys |
+| `Authorization: Bearer` | `customer-token` / `merchant-token` / `agent-token` (`agent:customer`) / `agent-merchant-token` (`agent:merchant`) | opaque demo tokens |
+| `Authorization: Bearer` | HS256 JWT `{ sub, role, scopes?, iat?, exp? }` | minted with server JWT secret; agents need `scopes` |
+| `X-API-Key` or `Authorization: ApiKey` | `customer-key` / `merchant-key` / `agent-key` / `agent-merchant-key` | API keys |
 
-RBAC surfaces: **customer** → customer+agent; **merchant** → merchant+agent; **agent-only** → agent; **audit** → agent+merchant. Wrong role → `403 FORBIDDEN`.
+RBAC surfaces: **customer** → `customer` + `agent:customer`; **merchant** → `merchant` + `agent:merchant`; **agent shopping aliases** → `agent:customer`; **agent merchant-ops / audit** → `agent:merchant`. Agent role alone never implies merchant (or customer) access — missing scope → `403 FORBIDDEN`.
 
 Writes require header **`Idempotency-Key`**. Errors:
 
@@ -61,11 +61,11 @@ Writes require header **`Idempotency-Key`**. Errors:
 
 | Method | Path | Notes |
 |--------|------|-------|
-| POST | `/api/webhooks/payment` | body `{ eventId, type: payment.captured\|payment.failed, orderId, amountCents? }`; idempotent on `eventId` (merchant/agent Bearer) |
+| POST | `/api/webhooks/payment` | body `{ eventId, type: payment.captured\|payment.failed, orderId, amountCents? }`; idempotent on `eventId` (merchant / `agent:merchant`) |
 
 ## Agent `/api/agent/*`
 
-Mirrors shopping + merchant ops for LLM clients (same `CommerceService`). Extra:
+Shopping aliases require `agent:customer`; catalog/stock/list-orders + audit require `agent:merchant`. Extra:
 
 | Method | Path | Notes |
 |--------|------|-------|

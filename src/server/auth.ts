@@ -4,11 +4,24 @@ import { DomainError } from '../domain/errors.js'
 
 export type Role = 'customer' | 'merchant' | 'agent'
 
+/** Explicit agent capability scopes — never implied by role alone. */
+export type AgentScope = 'agent:customer' | 'agent:merchant'
+
 export const ROLES: readonly Role[] = ['customer', 'merchant', 'agent'] as const
+
+export const AGENT_SCOPES: readonly AgentScope[] = ['agent:customer', 'agent:merchant'] as const
+
+/**
+ * Route access entries: human roles, or explicit agent scopes.
+ * Bare `'agent'` is intentionally not a grant — agents must hold a scope.
+ */
+export type AccessPrincipal = Role | AgentScope
 
 export type Actor = {
   role: Role
   subject: string
+  /** Agent capability scopes. Ignored for customer/merchant. Empty ⇒ no agent surface access. */
+  scopes?: AgentScope[]
 }
 
 export type JwtConfig = {
@@ -33,18 +46,54 @@ export const DEFAULT_AUTH: AuthConfig = {
   tokens: {
     'customer-token': { role: 'customer', subject: 'cust_demo' },
     'merchant-token': { role: 'merchant', subject: 'merchant_demo' },
-    'agent-token': { role: 'agent', subject: 'agent_demo' },
+    /** Shopping-only agent — no merchant surface. */
+    'agent-token': {
+      role: 'agent',
+      subject: 'agent_demo',
+      scopes: ['agent:customer'],
+    },
+    /** Merchant-ops agent — no customer surface. */
+    'agent-merchant-token': {
+      role: 'agent',
+      subject: 'agent_merchant_demo',
+      scopes: ['agent:merchant'],
+    },
   },
   apiKeys: {
     'customer-key': { role: 'customer', subject: 'cust_demo' },
     'merchant-key': { role: 'merchant', subject: 'merchant_demo' },
-    'agent-key': { role: 'agent', subject: 'agent_demo' },
+    'agent-key': {
+      role: 'agent',
+      subject: 'agent_demo',
+      scopes: ['agent:customer'],
+    },
+    'agent-merchant-key': {
+      role: 'agent',
+      subject: 'agent_merchant_demo',
+      scopes: ['agent:merchant'],
+    },
   },
   jwt: { secret: DEFAULT_JWT_SECRET },
 }
 
 function isRole(value: unknown): value is Role {
   return value === 'customer' || value === 'merchant' || value === 'agent'
+}
+
+function isAgentScope(value: unknown): value is AgentScope {
+  return value === 'agent:customer' || value === 'agent:merchant'
+}
+
+function normalizeScopes(raw: unknown): AgentScope[] | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (!Array.isArray(raw)) return undefined
+  const scopes = raw.filter(isAgentScope)
+  return scopes
+}
+
+export function hasAgentScope(actor: Actor, scope: AgentScope): boolean {
+  if (actor.role !== 'agent') return false
+  return (actor.scopes ?? []).includes(scope)
 }
 
 function unauthorized(message: string, hint?: string): never {
@@ -68,6 +117,8 @@ function safeEqual(a: string, b: string): boolean {
 export type JwtClaims = {
   sub: string
   role: Role
+  /** Agent scopes claim (required for agent surface access). */
+  scopes?: AgentScope[]
   iat?: number
   exp?: number
 }
@@ -77,11 +128,16 @@ export function signJwt(claims: JwtClaims, secret: string): string {
   if (!claims.sub || !isRole(claims.role)) {
     throw new Error('signJwt requires sub and a valid role')
   }
+  const scopes = normalizeScopes(claims.scopes)
+  if (claims.role === 'agent' && scopes && scopes.length === 0) {
+    throw new Error('signJwt agent scopes must be non-empty when provided')
+  }
   const now = Math.floor(Date.now() / 1000)
   const header = b64urlJson({ alg: 'HS256', typ: 'JWT' })
   const payload = b64urlJson({
     sub: claims.sub,
     role: claims.role,
+    ...(scopes && scopes.length > 0 ? { scopes } : {}),
     iat: claims.iat ?? now,
     ...(claims.exp !== undefined ? { exp: claims.exp } : {}),
   })
@@ -137,7 +193,18 @@ export function verifyJwt(token: string, config: JwtConfig): Actor {
   if (!isRole(claims.role)) {
     unauthorized('JWT missing or invalid role', `role must be one of ${ROLES.join(', ')}`)
   }
-  return { role: claims.role, subject: claims.sub }
+  const scopes = normalizeScopes(claims.scopes)
+  if (claims.scopes !== undefined && claims.scopes !== null && scopes === undefined) {
+    unauthorized(
+      'JWT scopes invalid',
+      `scopes must be an array of ${AGENT_SCOPES.join(', ')}`,
+    )
+  }
+  const actor: Actor = { role: claims.role, subject: claims.sub }
+  if (claims.role === 'agent' && scopes && scopes.length > 0) {
+    actor.scopes = scopes
+  }
+  return actor
 }
 
 function looksLikeJwt(token: string): boolean {
@@ -197,26 +264,55 @@ export function authenticate(req: IncomingMessage, config: AuthConfig = DEFAULT_
   unauthorized('unknown or revoked token', 'provide a valid bearer token, JWT, or API key')
 }
 
-export function requireRole(actor: Actor, allowed: Role[]): void {
-  if (!allowed.includes(actor.role)) {
-    throw new DomainError('FORBIDDEN', `role ${actor.role} cannot access this route`, {
-      hint: `allowed: ${allowed.join(', ')}`,
-      retryable: false,
-    })
+/** Whether `actor` satisfies at least one entry in the route access list. */
+export function actorMayAccess(actor: Actor, allowed: AccessPrincipal[]): boolean {
+  for (const entry of allowed) {
+    if (entry === 'agent:customer' || entry === 'agent:merchant') {
+      if (hasAgentScope(actor, entry)) return true
+      continue
+    }
+    // Bare 'agent' is never a grant (no default-on escape hatch).
+    if (entry === 'agent') continue
+    if (actor.role === entry) return true
+  }
+  return false
+}
+
+export function requireRole(actor: Actor, allowed: AccessPrincipal[]): void {
+  if (!actorMayAccess(actor, allowed)) {
+    const scopeHint =
+      actor.role === 'agent'
+        ? `; agent scopes=[${(actor.scopes ?? []).join(',') || 'none'}]`
+        : ''
+    throw new DomainError(
+      'FORBIDDEN',
+      `role ${actor.role} cannot access this route${scopeHint}`,
+      {
+        hint: `allowed: ${allowed.join(', ')}`,
+        retryable: false,
+      },
+    )
   }
 }
 
-/** Static capability matrix for the three commerce roles. */
-export function roleAllows(role: Role, surface: 'customer' | 'merchant' | 'agent' | 'audit'): boolean {
+/**
+ * Static capability matrix. Agent merchant/customer access requires the matching scope —
+ * role `agent` alone never implies merchant (or customer) power.
+ */
+export function roleAllows(
+  role: Role,
+  surface: 'customer' | 'merchant' | 'agent' | 'audit',
+  scopes: readonly AgentScope[] = [],
+): boolean {
   switch (surface) {
     case 'customer':
-      return role === 'customer' || role === 'agent'
+      return role === 'customer' || (role === 'agent' && scopes.includes('agent:customer'))
     case 'merchant':
-      return role === 'merchant' || role === 'agent'
+      return role === 'merchant' || (role === 'agent' && scopes.includes('agent:merchant'))
     case 'agent':
-      return role === 'agent'
+      return role === 'agent' && scopes.length > 0
     case 'audit':
-      return role === 'agent' || role === 'merchant'
+      return role === 'merchant' || (role === 'agent' && scopes.includes('agent:merchant'))
     default:
       return false
   }

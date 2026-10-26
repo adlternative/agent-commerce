@@ -142,7 +142,7 @@ describe('AI HTTP adapter integration', () => {
       headers: { authorization: 'Bearer agent-token' },
     })
     const res = await fetch(`${baseUrl}/api/agent/audit?limit=10`, {
-      headers: { authorization: 'Bearer agent-token' },
+      headers: { authorization: 'Bearer agent-merchant-token' },
     })
     const body = (await res.json()) as { events: { path: string }[] }
     expect(body.events.some((e) => e.path.includes('/api/'))).toBe(true)

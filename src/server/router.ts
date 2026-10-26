@@ -1,7 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { HttpMethod, RequestContext } from './http.js'
 import { readJsonBody, sendJson, getIdempotencyKey } from './http.js'
-import { authenticate, type AuthConfig, type Role, requireRole } from './auth.js'
+import {
+  authenticate,
+  type AccessPrincipal,
+  type AuthConfig,
+  requireRole,
+} from './auth.js'
 import { DomainError, isDomainError } from '../domain/errors.js'
 import type { AuditLog } from '../ai/audit.js'
 import type { TokenBucket } from '../ai/rate-limit.js'
@@ -29,7 +34,7 @@ type Route = {
   paramNames: string[]
   /** Path template used for metrics labels (e.g. /api/customer/orders/:id). */
   pathTemplate: string
-  roles: Role[]
+  roles: AccessPrincipal[]
   handler: RouteHandler
 }
 
@@ -142,7 +147,7 @@ export class Router {
     this.openApiProvider = fn
   }
 
-  on(method: HttpMethod, path: string, roles: Role[], handler: RouteHandler): void {
+  on(method: HttpMethod, path: string, roles: AccessPrincipal[], handler: RouteHandler): void {
     const paramNames: string[] = []
     const pattern = new RegExp(
       `^${path

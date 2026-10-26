@@ -115,7 +115,7 @@ describe('audit query HTTP API', () => {
   it('queries with filters via GET /api/agent/audit', async () => {
     const res = await fetch(
       `${baseUrl}/api/agent/audit?role=agent&pathPrefix=/api/agent&limit=20`,
-      { headers: { authorization: 'Bearer agent-token' } },
+      { headers: { authorization: 'Bearer agent-merchant-token' } },
     )
     expect(res.status).toBe(200)
     const body = (await res.json()) as {

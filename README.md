@@ -24,7 +24,7 @@ npm run dev
 npm run mcp
 ```
 
-演示 Bearer Token：`customer-token` / `merchant-token` / `agent-token`。
+演示 Bearer Token：`customer-token` / `merchant-token` / `agent-token`（`agent:customer`）/ `agent-merchant-token`（`agent:merchant`）。
 
 ## 能力一览
 

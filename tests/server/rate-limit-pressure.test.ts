@@ -106,8 +106,16 @@ describe('HTTP rate limit pressure', () => {
       rateLimit: { capacity: 2, refillPerSec: 0 },
       auth: {
         tokens: {
-          'agent-a': { role: 'agent', subject: 'agent_a' },
-          'agent-b': { role: 'agent', subject: 'agent_b' },
+          'agent-a': {
+            role: 'agent',
+            subject: 'agent_a',
+            scopes: ['agent:customer'],
+          },
+          'agent-b': {
+            role: 'agent',
+            subject: 'agent_b',
+            scopes: ['agent:customer'],
+          },
         },
         apiKeys: {},
       },
