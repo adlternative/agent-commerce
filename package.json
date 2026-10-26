@@ -21,7 +21,9 @@
     "premcp:http": "npm run build:server",
     "mcp:http": "node dist-server/mcp/http.js",
     "openapi": "vitest run tests/server/openapi.test.ts",
-    "openapi:check": "vitest run tests/server/openapi-check.test.ts"
+    "openapi:check": "vitest run tests/server/openapi-check.test.ts",
+    "premigrate": "npm run build:server",
+    "migrate": "node dist-server/repo/migrate-cli.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

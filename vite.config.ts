@@ -11,5 +11,12 @@ export default defineConfig({
       '/.well-known': 'http://127.0.0.1:8787',
     },
   },
-  test: { environment: 'node', globals: true },
+  // node:sqlite is a Node built-in; keep Vite/Vitest from rewriting it to bare "sqlite".
+  ssr: { external: ['node:sqlite'] },
+  optimizeDeps: { exclude: ['node:sqlite'] },
+  test: {
+    environment: 'node',
+    globals: true,
+    server: { deps: { external: ['node:sqlite'] } },
+  },
 })

@@ -4,15 +4,16 @@
  */
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { join } from 'node:path'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { JsonFileRepository } from '../repo/json-repository.js'
+import { createRepository } from '../repo/create-repository.js'
 import { CommerceService } from '../services/commerce.js'
 import { createMcpServer } from './create-mcp-server.js'
 
 const port = Number(process.env.MCP_HTTP_PORT ?? 8790)
-const dataPath = process.env.DATA_PATH ?? join(process.cwd(), 'data', 'commerce.json')
-const commerce = new CommerceService(new JsonFileRepository(dataPath))
+const opened = await createRepository({
+  dataPath: process.env.DATA_PATH,
+})
+const commerce = new CommerceService(opened.repo)
 
 const httpServer = createServer(async (req, res) => {
   // Stateless: new MCP server + transport per request (simple demo).
@@ -26,4 +27,5 @@ const httpServer = createServer(async (req, res) => {
 
 httpServer.listen(port, '127.0.0.1', () => {
   console.log(`MCP Streamable HTTP on http://127.0.0.1:${port}`)
+  console.log(`store: ${opened.backend} @ ${opened.path}`)
 })
