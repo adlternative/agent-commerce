@@ -151,6 +151,10 @@ export function registerRoutes(
     return commerce.cancelOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
+  router.on('POST', '/api/customer/orders/:id/receive', ['customer', 'agent'], async (ctx) => {
+    return commerce.receiveOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
+  })
+
   router.on('POST', '/api/customer/orders/:id/returns', ['customer', 'agent'], async (ctx) => {
     const body = ReturnSchema.parse(ctx.body)
     return commerce.requestReturn(
@@ -158,6 +162,19 @@ export function registerRoutes(
       body.reason,
       requireKey(ctx.idempotencyKey),
     )
+  })
+
+  // ── Payment webhooks (provider callbacks; idempotent on eventId) ─
+  router.on('POST', '/api/webhooks/payment', ['merchant', 'agent'], async (ctx) => {
+    const body = z
+      .object({
+        eventId: z.string().min(1),
+        type: z.enum(['payment.captured', 'payment.failed']),
+        orderId: z.string().min(1),
+        amountCents: z.number().int().nonnegative().optional(),
+      })
+      .parse(ctx.body)
+    return commerce.handlePaymentWebhook(body)
   })
 
   // ── Merchant ──────────────────────────────────────────────
@@ -233,6 +250,19 @@ export function registerRoutes(
   router.on('POST', '/api/merchant/orders/:id/deliver', ['merchant', 'agent'], async (ctx) => {
     return commerce.deliverOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
+
+  router.on('POST', '/api/merchant/orders/:id/receive', ['merchant', 'agent'], async (ctx) => {
+    return commerce.receiveOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
+  })
+
+  router.on(
+    'POST',
+    '/api/merchant/reservations/release-expired',
+    ['merchant', 'agent'],
+    async () => {
+      return commerce.releaseExpiredReservations()
+    },
+  )
 
   router.on('POST', '/api/merchant/promotions', ['merchant', 'agent'], async (ctx) => {
     const body = PromotionSchema.parse(ctx.body)

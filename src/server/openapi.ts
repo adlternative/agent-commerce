@@ -175,6 +175,74 @@ export function buildOpenApi() {
           responses: ok({ type: 'object' }),
         },
       },
+      '/api/customer/orders/{id}/receive': {
+        post: {
+          summary: 'Confirm goods received (shipped → delivered)',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            { $ref: '#/components/parameters/IdempotencyKey' },
+          ],
+          responses: ok({ $ref: '#/components/schemas/Order' }),
+        },
+      },
+      '/api/webhooks/payment': {
+        post: {
+          summary: 'Payment provider webhook (idempotent on eventId)',
+          tags: ['webhooks'],
+          security: bearer,
+          requestBody: jsonBody({
+            type: 'object',
+            required: ['eventId', 'type', 'orderId'],
+            properties: {
+              eventId: { type: 'string' },
+              type: { type: 'string', enum: ['payment.captured', 'payment.failed'] },
+              orderId: { type: 'string' },
+              amountCents: { type: 'integer' },
+            },
+          }),
+          responses: ok({ type: 'object' }),
+        },
+      },
+      '/api/merchant/orders/{id}/ship': {
+        post: {
+          summary: 'Ship a paid order',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            { $ref: '#/components/parameters/IdempotencyKey' },
+          ],
+          responses: ok({ $ref: '#/components/schemas/Order' }),
+        },
+      },
+      '/api/merchant/orders/{id}/receive': {
+        post: {
+          summary: 'Mark order received/delivered',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            { $ref: '#/components/parameters/IdempotencyKey' },
+          ],
+          responses: ok({ $ref: '#/components/schemas/Order' }),
+        },
+      },
+      '/api/merchant/reservations/release-expired': {
+        post: {
+          summary: 'Auto-release timed-out inventory holds and cancel unpaid orders',
+          tags: ['merchant'],
+          security: bearer,
+          responses: ok({
+            type: 'object',
+            properties: {
+              releasedReservationIds: { type: 'array', items: { type: 'string' } },
+              cancelledOrderIds: { type: 'array', items: { type: 'string' } },
+            },
+          }),
+        },
+      },
       '/api/merchant/products': {
         post: {
           summary: 'Upsert product',

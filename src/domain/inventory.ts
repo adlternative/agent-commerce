@@ -9,6 +9,9 @@ export const StockLevelSchema = z.object({
 
 export type StockLevel = z.infer<typeof StockLevelSchema>
 
+/** Default hold window for unpaid order reservations (15 minutes). */
+export const DEFAULT_RESERVATION_TTL_MS = 15 * 60 * 1000
+
 export const ReservationSchema = z.object({
   id: z.string().min(1),
   productId: z.string().min(1),
@@ -16,9 +19,35 @@ export const ReservationSchema = z.object({
   /** created | committed | released */
   status: z.enum(['created', 'committed', 'released']),
   createdAt: z.string().datetime(),
+  /** ISO timestamp after which a still-created hold may be auto-released. */
+  expiresAt: z.string().datetime(),
 })
 
 export type Reservation = z.infer<typeof ReservationSchema>
+
+export function isReservationExpired(reservation: Reservation, now: Date = new Date()): boolean {
+  if (reservation.status !== 'created') return false
+  return reservation.expiresAt <= now.toISOString()
+}
+
+export function createReservation(input: {
+  id: string
+  productId: string
+  quantity: number
+  ttlMs?: number
+  now?: Date
+}): Reservation {
+  const now = input.now ?? new Date()
+  const ttlMs = input.ttlMs ?? DEFAULT_RESERVATION_TTL_MS
+  return {
+    id: input.id,
+    productId: input.productId,
+    quantity: input.quantity,
+    status: 'created',
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
+  }
+}
 
 export function availableQty(stock: StockLevel): number {
   return stock.onHand - stock.reserved

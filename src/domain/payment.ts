@@ -13,17 +13,30 @@ export const PaymentSchema = z.object({
   amountCents: CentsSchema,
   status: PaymentStatusSchema,
   idempotencyKey: z.string().min(1),
+  /** Provider webhook event id when payment was driven by a callback. */
+  webhookEventId: z.string().min(1).optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })
 
 export type Payment = z.infer<typeof PaymentSchema>
 
+/** External payment-provider callback payload (idempotent on eventId). */
+export const PaymentWebhookEventSchema = z.object({
+  eventId: z.string().min(1),
+  type: z.enum(['payment.captured', 'payment.failed']),
+  orderId: z.string().min(1),
+  amountCents: CentsSchema.optional(),
+})
+
+export type PaymentWebhookEvent = z.infer<typeof PaymentWebhookEventSchema>
+
 export function createPendingPayment(input: {
   id: string
   orderId: string
   amountCents: number
   idempotencyKey: string
+  webhookEventId?: string
   now?: Date
 }): Payment {
   const now = (input.now ?? new Date()).toISOString()
@@ -33,9 +46,19 @@ export function createPendingPayment(input: {
     amountCents: input.amountCents,
     status: 'pending',
     idempotencyKey: input.idempotencyKey,
+    webhookEventId: input.webhookEventId,
     createdAt: now,
     updatedAt: now,
   }
+}
+
+/** Mark a pending payment as failed (order stays unpaid / created). */
+export function markPaymentFailed(payment: Payment): Payment {
+  if (payment.status === 'failed') return payment
+  if (payment.status !== 'pending') {
+    throw new DomainError('PAYMENT_NOT_FAILABLE', `payment status ${payment.status}`)
+  }
+  return { ...payment, status: 'failed', updatedAt: new Date().toISOString() }
 }
 
 /**

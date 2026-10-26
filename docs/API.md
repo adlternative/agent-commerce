@@ -30,10 +30,11 @@ Writes require header **`Idempotency-Key`**. Errors:
 | DELETE | `/carts/:id/items/:productId` | Idempotency-Key required |
 | POST | `/carts/:id/promotion` | `{ code }` |
 | GET | `/carts/:id/quote` | cents totals |
-| POST | `/orders` | `{ cartId }` → reserve |
+| POST | `/orders` | `{ cartId }` → reserve (15m hold TTL) |
 | GET | `/orders/:id` | |
 | POST | `/orders/:id/pay` | commit stock |
 | POST | `/orders/:id/cancel` | |
+| POST | `/orders/:id/receive` | shipped → delivered |
 | POST | `/orders/:id/returns` | `{ reason }` |
 
 ## Merchant `/api/merchant/*`
@@ -49,7 +50,15 @@ Writes require header **`Idempotency-Key`**. Errors:
 | GET | `/orders` | filters + optional cursor |
 | POST | `/orders/:id/ship` | |
 | POST | `/orders/:id/deliver` | |
+| POST | `/orders/:id/receive` | alias of deliver (receive verb) |
+| POST | `/reservations/release-expired` | release timed-out holds; cancel unpaid |
 | POST | `/promotions` | threshold / percent / fixed |
+
+## Webhooks
+
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/api/webhooks/payment` | body `{ eventId, type: payment.captured\|payment.failed, orderId, amountCents? }`; idempotent on `eventId` (merchant/agent Bearer) |
 
 ## Agent `/api/agent/*`
 

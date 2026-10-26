@@ -4,6 +4,9 @@ import {
   adjustOnHand,
   availableQty,
   commitStock,
+  createReservation,
+  DEFAULT_RESERVATION_TTL_MS,
+  isReservationExpired,
   releaseStock,
   reserveStock,
 } from '../../src/domain/inventory.js'
@@ -50,6 +53,39 @@ describe('inventory pure ops', () => {
   it('adjusts onHand with guards', () => {
     expect(adjustOnHand(base, 5).onHand).toBe(15)
     expect(() => adjustOnHand(base, -9)).toThrow(/below reserved|negative/)
+  })
+})
+
+describe('reservation TTL', () => {
+  it('creates reservations with default expiresAt', () => {
+    const now = new Date('2026-06-01T12:00:00.000Z')
+    const rsv = createReservation({
+      id: 'rsv_ttl',
+      productId: 'p1',
+      quantity: 2,
+      now,
+    })
+    expect(rsv.status).toBe('created')
+    expect(rsv.expiresAt).toBe(
+      new Date(now.getTime() + DEFAULT_RESERVATION_TTL_MS).toISOString(),
+    )
+    expect(isReservationExpired(rsv, now)).toBe(false)
+    expect(isReservationExpired(rsv, new Date(now.getTime() + DEFAULT_RESERVATION_TTL_MS + 1))).toBe(
+      true,
+    )
+  })
+
+  it('does not treat committed/released holds as expired', () => {
+    const now = new Date('2026-06-01T12:00:00.000Z')
+    const rsv = createReservation({
+      id: 'rsv_done',
+      productId: 'p1',
+      quantity: 1,
+      now,
+      ttlMs: 1,
+    })
+    const committed = { ...rsv, status: 'committed' as const }
+    expect(isReservationExpired(committed, new Date(now.getTime() + 10_000))).toBe(false)
   })
 })
 
