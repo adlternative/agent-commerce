@@ -8,6 +8,7 @@ export default defineConfig({
       '/api': 'http://127.0.0.1:8787',
       '/health': 'http://127.0.0.1:8787',
       '/openapi.json': 'http://127.0.0.1:8787',
+      '/.well-known': 'http://127.0.0.1:8787',
     },
   },
   test: { environment: 'node', globals: true },

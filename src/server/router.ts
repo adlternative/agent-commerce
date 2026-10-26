@@ -3,8 +3,16 @@ import type { HttpMethod, RequestContext } from './http.js'
 import { readJsonBody, sendJson, getIdempotencyKey } from './http.js'
 import { authenticate, type AuthConfig, type Role, requireRole } from './auth.js'
 import { isDomainError } from '../domain/errors.js'
+import type { AuditLog } from '../ai/audit.js'
+import type { TokenBucket } from '../ai/rate-limit.js'
+import { buildAiCommerceDiscovery } from '../ai/well-known.js'
 
 export type RouteHandler = (ctx: RequestContext) => Promise<unknown> | unknown
+
+export type AiAdapters = {
+  rateLimit?: TokenBucket
+  audit?: AuditLog
+}
 
 type Route = {
   method: HttpMethod
@@ -28,6 +36,8 @@ function statusForCode(code: string): number {
       return 401
     case 'FORBIDDEN':
       return 403
+    case 'RATE_LIMITED':
+      return 429
     case 'NOT_FOUND':
     case 'PRODUCT_NOT_FOUND':
     case 'CART_NOT_FOUND':
@@ -81,9 +91,11 @@ export class Router {
   private readonly routes: Route[] = []
   private readonly auth: AuthConfig
   private openApiProvider?: () => unknown
+  private ai: AiAdapters = {}
 
-  constructor(auth: AuthConfig) {
+  constructor(auth: AuthConfig, ai: AiAdapters = {}) {
     this.auth = auth
+    this.ai = ai
   }
 
   setOpenApiProvider(fn: () => unknown): void {
@@ -104,29 +116,47 @@ export class Router {
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const started = Date.now()
+    let actorLabel = 'anonymous'
+    let roleLabel = 'none'
+    let status = 500
+    let errorCode: string | undefined
+    const method = (req.method ?? 'GET').toUpperCase() as HttpMethod
+    const host = req.headers.host ?? 'localhost'
+    const url = new URL(req.url ?? '/', `http://${host}`)
+
     try {
       if (req.method === 'OPTIONS') {
         res.writeHead(204, corsHeaders())
         res.end()
+        status = 204
         return
       }
 
-      const host = req.headers.host ?? 'localhost'
-      const url = new URL(req.url ?? '/', `http://${host}`)
-      const method = (req.method ?? 'GET').toUpperCase() as HttpMethod
-
       if (method === 'GET' && url.pathname === '/health') {
         sendJson(res, 200, { ok: true }, corsHeaders())
+        status = 200
+        return
+      }
+      if (method === 'GET' && url.pathname === '/.well-known/ai-commerce.json') {
+        sendJson(res, 200, buildAiCommerceDiscovery(`http://${host}`), corsHeaders())
+        status = 200
         return
       }
       if (method === 'GET' && url.pathname === '/openapi.json' && this.openApiProvider) {
         sendJson(res, 200, this.openApiProvider(), corsHeaders())
+        status = 200
         return
       }
 
       const actor = authenticate(req, this.auth)
+      actorLabel = actor.subject
+      roleLabel = actor.role
+      this.ai.rateLimit?.take(`${actor.role}:${actor.subject}`)
+
       const match = this.routes.find((r) => r.method === method && r.pattern.test(url.pathname))
       if (!match) {
+        status = 404
         sendJson(
           res,
           404,
@@ -149,6 +179,7 @@ export class Router {
 
       const needsBody = method === 'POST' || method === 'PUT' || method === 'PATCH'
       const body = needsBody ? await readJsonBody(req) : undefined
+      const idempotencyKey = getIdempotencyKey(req)
 
       const ctx: RequestContext = {
         req,
@@ -157,7 +188,7 @@ export class Router {
         params,
         query: url.searchParams,
         body,
-        idempotencyKey: getIdempotencyKey(req),
+        idempotencyKey,
         actor,
       }
 
@@ -165,11 +196,31 @@ export class Router {
       if (result === undefined) {
         res.writeHead(204, corsHeaders())
         res.end()
+        status = 204
         return
       }
       sendJson(res, 200, result, corsHeaders())
+      status = 200
     } catch (err) {
+      if (isDomainError(err)) {
+        status = statusForCode(err.code)
+        errorCode = err.code
+      } else {
+        status = 500
+        errorCode = 'INTERNAL_ERROR'
+      }
       sendErr(res, err)
+    } finally {
+      this.ai.audit?.record({
+        actor: actorLabel,
+        role: roleLabel,
+        method,
+        path: url.pathname,
+        status,
+        idempotencyKey: getIdempotencyKey(req),
+        code: errorCode,
+        durationMs: Date.now() - started,
+      })
     }
   }
 }
