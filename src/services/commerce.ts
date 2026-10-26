@@ -18,9 +18,10 @@ import {
   adjustOnHand,
   availableQty,
   commitStock,
+  createReservation,
+  isReservationExpired,
   releaseStock,
   reserveStock,
-  type Reservation,
   type StockLevel,
 } from '../domain/inventory.js'
 import {
@@ -42,7 +43,14 @@ import {
   transitionOrder,
   type Order,
 } from '../domain/order.js'
-import { capturePayment, createPendingPayment, type Payment } from '../domain/payment.js'
+import {
+  capturePayment,
+  createPendingPayment,
+  markPaymentFailed,
+  PaymentWebhookEventSchema,
+  type Payment,
+  type PaymentWebhookEvent,
+} from '../domain/payment.js'
 import {
   completeReturnRefund,
   createReturnRequest,
@@ -434,18 +442,18 @@ export class CommerceService {
       // Reserve stock for all lines; roll back on failure.
       const reservationIds: string[] = []
       const reservedSnapshots: { productId: string; quantity: number }[] = []
+      const holdNow = new Date()
       try {
         for (const line of quote.lines) {
           const stock = findStock(db.stock, line.productId)
           const { stock: next } = reserveStock(stock, line.quantity)
           upsertStock(db.stock, next)
-          const reservation: Reservation = {
+          const reservation = createReservation({
             id: newId('rsv'),
             productId: line.productId,
             quantity: line.quantity,
-            status: 'created',
-            createdAt: new Date().toISOString(),
-          }
+            now: holdNow,
+          })
           db.reservations.push(reservation)
           reservationIds.push(reservation.id)
           reservedSnapshots.push({ productId: line.productId, quantity: line.quantity })
@@ -550,6 +558,172 @@ export class CommerceService {
 
   async deliverOrder(orderId: string, idempotencyKey: string): Promise<Order> {
     return this.transitionWithIdempotency(orderId, 'delivered', 'deliver_order', idempotencyKey)
+  }
+
+  /**
+   * Customer/merchant confirm goods received (shipped → delivered).
+   * Same transition as deliverOrder; separate idempotency scope for the receive verb.
+   */
+  async receiveOrder(orderId: string, idempotencyKey: string): Promise<Order> {
+    return this.transitionWithIdempotency(orderId, 'delivered', 'receive_order', idempotencyKey)
+  }
+
+  /**
+   * Payment-provider webhook: idempotent on eventId.
+   * - payment.captured → capture + commit stock (same effect as payOrder)
+   * - payment.failed → record failed payment; order stays created
+   */
+  async handlePaymentWebhook(
+    event: PaymentWebhookEvent,
+  ): Promise<{ order: Order; payment: Payment; replayed: boolean }> {
+    const parsed = PaymentWebhookEventSchema.parse(event)
+    const key = parsed.eventId
+    const requestHash = hashRequest({
+      type: parsed.type,
+      orderId: parsed.orderId,
+      amountCents: parsed.amountCents ?? null,
+    })
+
+    return this.repo.transaction((db) => {
+      const scope = 'payment_webhook'
+      const existing = db.idempotency.find((r) => r.key === key && r.scope === scope)
+      const resolved = resolveIdempotency(existing, key, scope, requestHash)
+      if (resolved.replay) {
+        const payment = db.payments.find((p) => p.id === resolved.resourceId)
+        if (!payment) {
+          throw new DomainError('PAYMENT_NOT_FOUND', 'idempotent webhook payment missing')
+        }
+        const order = db.orders.find((o) => o.id === payment.orderId)
+        if (!order) throw new DomainError('ORDER_NOT_FOUND', 'idempotent webhook order missing')
+        return { order, payment, replayed: true }
+      }
+
+      const orderIdx = db.orders.findIndex((o) => o.id === parsed.orderId)
+      if (orderIdx < 0) {
+        throw new DomainError('ORDER_NOT_FOUND', `order ${parsed.orderId} not found`)
+      }
+      let order = db.orders[orderIdx]!
+
+      if (parsed.type === 'payment.failed') {
+        if (order.status !== 'created') {
+          throw new DomainError(
+            'ORDER_NOT_PAYABLE',
+            `cannot fail payment for order status ${order.status}`,
+          )
+        }
+        const amountCents = parsed.amountCents ?? order.totalCents
+        const pending = createPendingPayment({
+          id: newId('pay'),
+          orderId: order.id,
+          amountCents,
+          idempotencyKey: key,
+          webhookEventId: parsed.eventId,
+        })
+        const failed = markPaymentFailed(pending)
+        db.payments.push(failed)
+        db.idempotency.push(
+          makeIdempotencyRecord({
+            key,
+            scope,
+            resourceId: failed.id,
+            requestHash,
+          }),
+        )
+        return { order, payment: failed, replayed: false }
+      }
+
+      // payment.captured
+      if (parsed.amountCents !== undefined && parsed.amountCents !== order.totalCents) {
+        throw new DomainError('PAYMENT_AMOUNT_MISMATCH', 'webhook amount must equal order total', {
+          hint: `payment=${parsed.amountCents} order=${order.totalCents}`,
+        })
+      }
+
+      const payment = createPendingPayment({
+        id: newId('pay'),
+        orderId: order.id,
+        amountCents: order.totalCents,
+        idempotencyKey: key,
+        webhookEventId: parsed.eventId,
+      })
+      const captured = capturePayment(payment, order)
+      order = captured.order
+
+      for (const rsvId of order.reservationIds) {
+        const rsv = db.reservations.find((r) => r.id === rsvId)
+        if (!rsv || rsv.status !== 'created') continue
+        const stock = findStock(db.stock, rsv.productId)
+        upsertStock(db.stock, commitStock(stock, rsv.quantity))
+        rsv.status = 'committed'
+      }
+
+      db.orders[orderIdx] = order
+      db.payments.push(captured.payment)
+      db.idempotency.push(
+        makeIdempotencyRecord({
+          key,
+          scope,
+          resourceId: captured.payment.id,
+          requestHash,
+        }),
+      )
+      return { order, payment: captured.payment, replayed: false }
+    })
+  }
+
+  /**
+   * Release inventory holds whose expiresAt has passed, and cancel unpaid
+   * orders that owned those holds. Safe to call repeatedly (cron / merchant).
+   */
+  async releaseExpiredReservations(
+    now: Date = new Date(),
+  ): Promise<{ releasedReservationIds: string[]; cancelledOrderIds: string[] }> {
+    return this.repo.transaction((db) => {
+      const expiredIds = new Set(
+        db.reservations.filter((r) => isReservationExpired(r, now)).map((r) => r.id),
+      )
+      if (expiredIds.size === 0) {
+        return { releasedReservationIds: [], cancelledOrderIds: [] }
+      }
+
+      const affectedOrderIds = new Set<string>()
+      for (const order of db.orders) {
+        if (order.status !== 'created') continue
+        if (order.reservationIds.some((id) => expiredIds.has(id))) {
+          affectedOrderIds.add(order.id)
+        }
+      }
+
+      const releasedReservationIds: string[] = []
+      const releaseOne = (rsvId: string) => {
+        const rsv = db.reservations.find((r) => r.id === rsvId)
+        if (!rsv || rsv.status !== 'created') return
+        const stock = findStock(db.stock, rsv.productId)
+        upsertStock(db.stock, releaseStock(stock, rsv.quantity))
+        rsv.status = 'released'
+        releasedReservationIds.push(rsv.id)
+      }
+
+      // Cancel unpaid orders that hit the hold timeout; release all their holds.
+      const cancelledOrderIds: string[] = []
+      for (const orderId of affectedOrderIds) {
+        const idx = db.orders.findIndex((o) => o.id === orderId)
+        if (idx < 0) continue
+        const order = db.orders[idx]!
+        for (const rsvId of order.reservationIds) {
+          releaseOne(rsvId)
+        }
+        db.orders[idx] = transitionOrder(order, 'cancelled')
+        cancelledOrderIds.push(orderId)
+      }
+
+      // Orphan expired holds (no created order) still release stock.
+      for (const rsvId of expiredIds) {
+        releaseOne(rsvId)
+      }
+
+      return { releasedReservationIds, cancelledOrderIds }
+    })
   }
 
   async cancelOrder(orderId: string, idempotencyKey: string): Promise<Order> {

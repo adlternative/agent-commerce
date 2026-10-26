@@ -201,4 +201,94 @@ describe('HTTP API integration', () => {
     const doc = (await res.json()) as { openapi: string }
     expect(doc.openapi).toBe('3.1.0')
   })
+
+  it('handles payment webhook idempotently and closes ship→receive→refund', async () => {
+    // Fresh SKU so prior tests' stock drain does not interfere.
+    const created = await api(baseUrl, 'POST', '/api/merchant/products', {
+      token: 'merchant-token',
+      idempotencyKey: 'webhook-prod',
+      body: {
+        sku: 'WH-01',
+        name: 'Webhook Widget',
+        priceCents: 1_500,
+        tags: ['test'],
+        agentNotes: 'Webhook path fixture.',
+      },
+    })
+    expect(created.status).toBe(200)
+    const pid = created.json.id as string
+    await api(baseUrl, 'POST', `/api/merchant/products/${pid}/stock`, {
+      token: 'merchant-token',
+      idempotencyKey: 'webhook-stock',
+      body: { delta: 3 },
+    })
+
+    const cart = await api(baseUrl, 'POST', '/api/customer/carts', {
+      idempotencyKey: 'webhook-cart',
+      body: { customerId: 'cust_webhook' },
+    })
+    await api(baseUrl, 'POST', `/api/customer/carts/${cart.json.id}/items`, {
+      idempotencyKey: 'webhook-add',
+      body: { productId: pid, quantity: 1 },
+    })
+    const order = await api(baseUrl, 'POST', '/api/customer/orders', {
+      idempotencyKey: 'webhook-order',
+      body: { cartId: cart.json.id },
+    })
+    expect(order.status).toBe(200)
+
+    const hook = await api(baseUrl, 'POST', '/api/webhooks/payment', {
+      token: 'merchant-token',
+      body: {
+        eventId: 'evt_api_1',
+        type: 'payment.captured',
+        orderId: order.json.id,
+      },
+    })
+    expect(hook.status).toBe(200)
+    expect((hook.json.order as Json).status).toBe('paid')
+    expect(hook.json.replayed).toBe(false)
+
+    const replay = await api(baseUrl, 'POST', '/api/webhooks/payment', {
+      token: 'merchant-token',
+      body: {
+        eventId: 'evt_api_1',
+        type: 'payment.captured',
+        orderId: order.json.id,
+      },
+    })
+    expect(replay.status).toBe(200)
+    expect(replay.json.replayed).toBe(true)
+
+    const ship = await api(baseUrl, 'POST', `/api/merchant/orders/${order.json.id}/ship`, {
+      token: 'merchant-token',
+      idempotencyKey: 'webhook-ship',
+    })
+    expect(ship.status).toBe(200)
+    expect(ship.json.status).toBe('shipped')
+
+    const receive = await api(baseUrl, 'POST', `/api/customer/orders/${order.json.id}/receive`, {
+      idempotencyKey: 'webhook-receive',
+    })
+    expect(receive.status).toBe(200)
+    expect(receive.json.status).toBe('delivered')
+
+    const ret = await api(baseUrl, 'POST', `/api/customer/orders/${order.json.id}/returns`, {
+      idempotencyKey: 'webhook-return',
+      body: { reason: 'changed mind' },
+    })
+    expect(ret.status).toBe(200)
+    expect((ret.json.order as Json).status).toBe('refunded')
+  })
+
+  it('exposes release-expired reservations endpoint', async () => {
+    const res = await api(baseUrl, 'POST', '/api/merchant/reservations/release-expired', {
+      token: 'merchant-token',
+    })
+    expect(res.status).toBe(200)
+    expect(res.json).toMatchObject({
+      releasedReservationIds: expect.any(Array),
+      cancelledOrderIds: expect.any(Array),
+    })
+  })
 })

@@ -33,14 +33,17 @@ Default persistence is a **single JSON file** (`JsonFileRepository`):
 ## Order state machine
 
 ```
-created → paid → shipped → delivered
+created → paid → shipped → delivered (receive)
    │        │        │         │
    └─ cancelled      └─────────┴─→ refunded
             └─ cancelled / refunded
 ```
 
-- `place_order` **reserves** stock  
-- `pay_order` **commits** (deducts)  
+- `place_order` **reserves** stock with a **15-minute TTL** (`expiresAt`)
+- `pay_order` or webhook `payment.captured` **commits** (deducts)
+- webhook `payment.failed` records a failed payment; order stays `created`
+- unpaid holds past `expiresAt` are **auto-released** via `releaseExpiredReservations` (also cancels the order)
+- closed loop: **ship → receive (delivered) → refund** (return from paid/shipped/delivered)
 - cancel-before-pay **releases**; cancel-after-pay / return **restocks**
 
 ## Concurrency & AI safety

@@ -68,8 +68,11 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
         'POST /api/merchant/products/:id/stock',
         'GET /api/merchant/orders',
         'POST /api/merchant/orders/:id/ship',
+        'POST /api/merchant/orders/:id/receive',
+        'POST /api/merchant/reservations/release-expired',
         'POST /api/merchant/promotions',
       ],
+      webhooks: ['POST /api/webhooks/payment'],
       agent: [
         'GET /api/agent/products',
         'POST /api/agent/carts',
