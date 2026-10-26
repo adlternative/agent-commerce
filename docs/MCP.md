@@ -63,23 +63,24 @@ All money fields are **integer cents**. Write tools take `idempotencyKey`.
 }
 ```
 
-Or with Node directly:
+Or with the compiled entrypoint (preferred; `npm run mcp` builds first):
 
 ```json
 {
   "mcpServers": {
     "agent-commerce": {
       "command": "node",
-      "args": [
-        "--experimental-strip-types",
-        "--experimental-transform-types",
-        "src/mcp/stdio.ts"
-      ],
-      "cwd": "/absolute/path/to/agent-commerce"
+      "args": ["dist-server/mcp/stdio.js"],
+      "cwd": "/absolute/path/to/agent-commerce",
+      "env": {
+        "DATA_PATH": "/absolute/path/to/agent-commerce/data/commerce.json"
+      }
     }
   }
 }
 ```
+
+Do **not** run TypeScript sources with `node --experimental-strip-types`: relative `.js` imports are not rewritten to `.ts`, so runtime fails with `ERR_MODULE_NOT_FOUND`.
 
 ## Dependency note
 
