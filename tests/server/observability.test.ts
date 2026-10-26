@@ -73,4 +73,49 @@ describe('HTTP observability', () => {
     expect(id).toBeTruthy()
     expect(id!.length).toBeGreaterThanOrEqual(16)
   })
+
+  it('labels unmatched routes as path="<unmatched>" (cardinality ≤ 3 after 50 misses)', async () => {
+    app.metrics.reset()
+
+    const paths = Array.from(
+      { length: 50 },
+      (_, i) => `/api/ext/job-${i}-${Math.random().toString(36).slice(2, 10)}`,
+    )
+    for (const p of paths) {
+      const res = await fetch(`${baseUrl}${p}`)
+      expect(res.status).toBe(404)
+    }
+
+    const metricsRes = await fetch(`${baseUrl}/metrics`)
+    expect(metricsRes.status).toBe(200)
+    const body = await metricsRes.text()
+
+    expect(body).toContain('path="<unmatched>"')
+    for (const p of paths) {
+      expect(body).not.toContain(`path="${p}"`)
+    }
+
+    const pathLabels = new Set<string>()
+    for (const m of body.matchAll(/\bpath="([^"]*)"/g)) {
+      pathLabels.add(m[1]!)
+    }
+    expect(pathLabels.size).toBeLessThanOrEqual(3)
+    expect(pathLabels.has('<unmatched>')).toBe(true)
+  })
+
+  it('labels matched parameterized routes with the route template', async () => {
+    app.metrics.reset()
+
+    const raw = '/api/customer/orders/ord_cardinality_probe'
+    const res = await fetch(`${baseUrl}${raw}`, {
+      headers: { authorization: 'Bearer customer-token' },
+    })
+    // Missing order → domain 404; route still matched.
+    expect(res.status).toBe(404)
+
+    const body = await (await fetch(`${baseUrl}/metrics`)).text()
+    expect(body).toContain('path="/api/customer/orders/:id"')
+    expect(body).not.toContain(`path="${raw}"`)
+    expect(body).not.toContain('path="<unmatched>"')
+  })
 })

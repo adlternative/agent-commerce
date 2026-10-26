@@ -233,7 +233,8 @@ export class Router {
       if (!match) {
         status = 404
         errorCode = 'NOT_FOUND'
-        metricPath = url.pathname
+        // Cap Prometheus cardinality: never label unmatched routes with the raw URL.
+        metricPath = '<unmatched>'
         sendJson(
           res,
           404,
