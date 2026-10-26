@@ -74,9 +74,34 @@ function upsertStock(stock: StockLevel[], next: StockLevel): void {
 export class CommerceService {
   constructor(private readonly repo: CommerceRepository) {}
 
-  async listProducts(query: { q?: string; tag?: string } = {}): Promise<Product[]> {
+  async listProducts(
+    query: { q?: string; tag?: string; activeOnly?: boolean } = {},
+  ): Promise<Product[]> {
     const db = await this.repo.read()
-    return searchProducts(db.products, { ...query, activeOnly: true })
+    return searchProducts(db.products, {
+      ...query,
+      activeOnly: query.activeOnly !== false,
+    })
+  }
+
+  async getMetrics(): Promise<{
+    gmvCents: number
+    orderCount: number
+    paidOrderCount: number
+    outOfStockCount: number
+  }> {
+    const db = await this.repo.read()
+    const counted = db.orders.filter((o) =>
+      o.status === 'paid' || o.status === 'shipped' || o.status === 'delivered',
+    )
+    const gmvCents = counted.reduce((sum, o) => sum + o.totalCents, 0)
+    const outOfStockCount = db.stock.filter((s) => availableQty(s) <= 0).length
+    return {
+      gmvCents,
+      orderCount: db.orders.length,
+      paidOrderCount: counted.length,
+      outOfStockCount,
+    }
   }
 
   async getProduct(id: string): Promise<Product> {

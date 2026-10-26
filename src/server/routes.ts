@@ -148,12 +148,20 @@ export function registerRoutes(router: Router, commerce: CommerceService): void 
   })
 
   // ── Merchant ──────────────────────────────────────────────
+  router.on('GET', '/api/merchant/metrics', ['merchant', 'agent'], async () => {
+    return commerce.getMetrics()
+  })
+
   router.on('GET', '/api/merchant/products', ['merchant', 'agent'], async (ctx) => {
-    const db = await commerce.listProducts({
+    return commerce.listProducts({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
+      activeOnly: ctx.query.get('activeOnly') !== 'false' ? true : false,
     })
-    return db
+  })
+
+  router.on('GET', '/api/merchant/inventory/:productId', ['merchant', 'agent'], async (ctx) => {
+    return commerce.checkInventory(ctx.params.productId!)
   })
 
   router.on('POST', '/api/merchant/products', ['merchant', 'agent'], async (ctx) => {
