@@ -32,7 +32,7 @@ npm run mcp
 |--------|------|
 | 顾客 | Web UI · `/api/customer/*` |
 | 商家 | `#/merchant` · `/api/merchant/*` |
-| AI Agent | MCP（16 tools）· `/api/agent/*` · `/.well-known/ai-commerce.json` |
+| AI Agent | MCP（17 tools · sampling）· `/api/agent/*` · `/.well-known/ai-commerce.json` |
 
 约定：
 

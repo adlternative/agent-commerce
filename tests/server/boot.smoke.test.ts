@@ -88,7 +88,7 @@ describe('compiled server boot smoke', () => {
       mcp: { tools: { name: string }[] }
       http: { customer: string[]; agent: string[] }
     }
-    expect(doc.mcp.tools.length).toBe(16)
+    expect(doc.mcp.tools.length).toBe(17)
     expect(doc.http.customer.some((r) => r.includes('/products'))).toBe(true)
     expect(doc.http.agent.length).toBeGreaterThan(0)
   })

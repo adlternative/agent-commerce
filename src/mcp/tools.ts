@@ -1,29 +1,24 @@
 import { z } from 'zod'
 import type { CommerceService } from '../services/commerce.js'
-import { isDomainError } from '../domain/errors.js'
 import { UpsertProductInputSchema } from '../domain/product.js'
+import { toMappedErrorBody } from './errors.js'
 
 /** Shared helper: tool handlers return JSON text content for LLMs. */
 export function toolResult(data: unknown): { content: { type: 'text'; text: string }[] } {
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] }
 }
 
+/**
+ * Tool-level error payload: unified domain body + mapped MCP numeric `mcpErrorCode`.
+ * Keeps CallToolResult.isError=true so clients see structured commerce codes.
+ */
 export function toolError(err: unknown): {
   isError: true
   content: { type: 'text'; text: string }[]
 } {
-  if (isDomainError(err)) {
-    return { isError: true, content: [{ type: 'text', text: JSON.stringify(err.toJSON()) }] }
-  }
-  const message = err instanceof Error ? err.message : String(err)
   return {
     isError: true,
-    content: [
-      {
-        type: 'text',
-        text: JSON.stringify({ code: 'TOOL_ERROR', message, retryable: true }),
-      },
-    ],
+    content: [{ type: 'text', text: JSON.stringify(toMappedErrorBody(err)) }],
   }
 }
 
