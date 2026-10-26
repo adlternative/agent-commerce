@@ -2,13 +2,15 @@
 
 Base URL (local): `http://127.0.0.1:8787`  
 OpenAPI 3.1: [`openapi.json`](./openapi.json) · `GET /openapi.json`  
-Auth: `Authorization: Bearer <token>`
+Auth (any one):
 
-| Token | Role |
-|-------|------|
-| `customer-token` | customer |
-| `merchant-token` | merchant |
-| `agent-token` | agent |
+| Scheme | Credential | Role |
+|--------|------------|------|
+| `Authorization: Bearer` | `customer-token` / `merchant-token` / `agent-token` | opaque demo tokens |
+| `Authorization: Bearer` | HS256 JWT `{ sub, role, iat?, exp? }` | minted with server JWT secret |
+| `X-API-Key` or `Authorization: ApiKey` | `customer-key` / `merchant-key` / `agent-key` | API keys |
+
+RBAC surfaces: **customer** → customer+agent; **merchant** → merchant+agent; **agent-only** → agent; **audit** → agent+merchant. Wrong role → `403 FORBIDDEN`.
 
 Writes require header **`Idempotency-Key`**. Errors:
 
@@ -48,6 +50,7 @@ Writes require header **`Idempotency-Key`**. Errors:
 | POST | `/products/:id/stock` | `{ delta }` |
 | GET | `/inventory/:productId` | |
 | GET | `/orders` | filters + optional cursor |
+| GET | `/audit` | same query API as agent audit |
 | POST | `/orders/:id/ship` | |
 | POST | `/orders/:id/deliver` | |
 | POST | `/orders/:id/receive` | alias of deliver (receive verb) |
@@ -66,7 +69,7 @@ Mirrors shopping + merchant ops for LLM clients (same `CommerceService`). Extra:
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/audit` | recent audit events |
+| GET | `/audit` | query audit (`actor`, `role`, `method`, `pathPrefix`, `pathContains`, `status`, `code`, `traceId`, `since`, `until`, `limit`) |
 
 ## Public
 
@@ -81,7 +84,8 @@ Mirrors shopping + merchant ops for LLM clients (same `CommerceService`). Extra:
 
 - Every response includes **`X-Trace-Id`**. Clients may send `X-Trace-Id` or W3C `traceparent` to continue a trace; otherwise the server mints one.
 - Structured JSON logs (stdout) carry the same `traceId` on `request.start` / `request.end` / `request.error`.
-- Audit events (`GET /api/agent/audit`) include `traceId` when recorded from HTTP.
+- Audit events (`GET /api/agent/audit` or `/api/merchant/audit`) include `traceId` when recorded from HTTP; support filter query params.
+- Rate limit: per `role:subject` token bucket; exhausted → `429 RATE_LIMITED` + `Retry-After`.
 
 ## Cursor pagination
 

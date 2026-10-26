@@ -7,7 +7,7 @@ Agent Commerce is an AI-native commerce stack: human customers, merchants, and A
 1. **Domain** (`src/domain/*`) — zod schemas, inventory math, cart/promotion quoting, order state machine, payment/return. Amounts are integer **cents**. Errors are `DomainError` → `{ code, message, hint?, retryable }`.
 2. **Repository** (`src/repo/*`) — `CommerceRepository` port with SQLite (default), JSON-file, and in-memory adapters.
 3. **Service** (`src/services/commerce.ts`) — use-cases; every write takes an **Idempotency-Key**.
-4. **HTTP** (`src/server/*`) — `node:http` router, Bearer role auth, OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`.
+4. **HTTP** (`src/server/*`) — `node:http` router, API Key + opaque Bearer + HS256 JWT auth, three-role RBAC, OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`.
 5. **MCP** (`src/mcp/*`) — 16 tools + resources + prompts on the same `CommerceService`.
 
 Backend runtime is **compiled** (`npm run build:server` → `dist-server/`) so NodeNext-style `.js` import specifiers resolve to real files. Do not run `src/**/*.ts` with `--experimental-strip-types` for server/MCP entrypoints.
@@ -55,6 +55,7 @@ created → paid → shipped → delivered (receive)
 ## Concurrency & AI safety
 
 - Repository `transaction()` serializes writes in-process (oversell-safe for one Node process).
-- Token bucket rate limit per `role:subject`.
-- Audit ring buffer records method/path/status/idempotency key/`traceId` for agent debugging.
+- Token bucket rate limit per `role:subject` (pressure-tested); `Retry-After` on `429`.
+- Audit ring buffer records method/path/status/idempotency key/`traceId`; query via `/api/agent/audit` or `/api/merchant/audit`.
 - Request logs are single-line JSON; `X-Trace-Id` correlates logs, audit, and client responses.
+- Auth credentials never require new npm deps (JWT via `node:crypto` HMAC).

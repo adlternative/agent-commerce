@@ -12,6 +12,48 @@ const errorSchema = {
 } as const
 
 const bearer = [{ BearerAuth: [] }]
+const apiKeyOrBearer = [{ BearerAuth: [] }, { ApiKeyAuth: [] }]
+
+const auditQueryParams = [
+  { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 500 } },
+  { name: 'actor', in: 'query', schema: { type: 'string' } },
+  { name: 'role', in: 'query', schema: { type: 'string', enum: ['customer', 'merchant', 'agent'] } },
+  { name: 'method', in: 'query', schema: { type: 'string' } },
+  { name: 'pathPrefix', in: 'query', schema: { type: 'string' } },
+  { name: 'pathContains', in: 'query', schema: { type: 'string' } },
+  { name: 'status', in: 'query', schema: { type: 'integer' } },
+  { name: 'code', in: 'query', schema: { type: 'string' } },
+  { name: 'traceId', in: 'query', schema: { type: 'string' } },
+  { name: 'since', in: 'query', schema: { type: 'string', format: 'date-time' } },
+  { name: 'until', in: 'query', schema: { type: 'string', format: 'date-time' } },
+] as const
+
+const auditResponse = ok({
+  type: 'object',
+  required: ['events', 'count'],
+  properties: {
+    count: { type: 'integer' },
+    events: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          at: { type: 'string' },
+          actor: { type: 'string' },
+          role: { type: 'string' },
+          method: { type: 'string' },
+          path: { type: 'string' },
+          status: { type: 'integer' },
+          code: { type: 'string' },
+          durationMs: { type: 'number' },
+          idempotencyKey: { type: 'string' },
+          traceId: { type: 'string' },
+        },
+      },
+    },
+  },
+})
 
 function jsonBody(schema: Record<string, unknown>) {
   return {
@@ -48,7 +90,14 @@ export function buildOpenApi() {
         BearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          description: 'customer-token | merchant-token | agent-token',
+          description:
+            'Opaque demo tokens (customer-token | merchant-token | agent-token) or HS256 JWT with claims { sub, role }',
+        },
+        ApiKeyAuth: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-API-Key',
+          description: 'customer-key | merchant-key | agent-key (or Authorization: ApiKey <key>)',
         },
       },
       parameters: {
@@ -300,7 +349,7 @@ export function buildOpenApi() {
         get: {
           summary: 'Agent product search',
           tags: ['agent'],
-          security: bearer,
+          security: apiKeyOrBearer,
           parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
           responses: ok({ type: 'array', items: { $ref: '#/components/schemas/Product' } }),
         },
@@ -309,7 +358,7 @@ export function buildOpenApi() {
         post: {
           summary: 'Agent place order',
           tags: ['agent'],
-          security: bearer,
+          security: apiKeyOrBearer,
           parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }],
           requestBody: jsonBody({
             type: 'object',
@@ -317,6 +366,26 @@ export function buildOpenApi() {
             properties: { cartId: { type: 'string' } },
           }),
           responses: ok({ $ref: '#/components/schemas/Order' }),
+        },
+      },
+      '/api/agent/audit': {
+        get: {
+          summary: 'Query recent audit events',
+          description:
+            'Filter in-memory audit ring buffer by actor, role, path, status, code, traceId, or time range.',
+          tags: ['agent', 'security'],
+          security: apiKeyOrBearer,
+          parameters: [...auditQueryParams],
+          responses: auditResponse,
+        },
+      },
+      '/api/merchant/audit': {
+        get: {
+          summary: 'Query audit events (merchant)',
+          tags: ['merchant', 'security'],
+          security: apiKeyOrBearer,
+          parameters: [...auditQueryParams],
+          responses: auditResponse,
         },
       },
     },

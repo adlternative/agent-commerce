@@ -11,6 +11,30 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
     money: { unit: 'cents', integerOnly: true },
     authentication: {
       type: 'http',
+      schemes: ['bearer', 'apiKey', 'jwt'],
+      bearer: {
+        scheme: 'bearer',
+        tokens: {
+          customer: 'customer-token',
+          merchant: 'merchant-token',
+          agent: 'agent-token',
+        },
+        jwt: {
+          alg: 'HS256',
+          claims: ['sub', 'role'],
+          roles: ['customer', 'merchant', 'agent'],
+        },
+      },
+      apiKey: {
+        header: 'X-API-Key',
+        altAuthorization: 'ApiKey <key>',
+        keys: {
+          customer: 'customer-key',
+          merchant: 'merchant-key',
+          agent: 'agent-key',
+        },
+      },
+      // Back-compat for older clients that read scheme/tokens only
       scheme: 'bearer',
       tokens: {
         customer: 'customer-token',
@@ -38,7 +62,21 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
         refillPerSec: 1,
         errorCode: 'RATE_LIMITED',
       },
-      audit: { path: '/api/agent/audit', description: 'Recent request audit events' },
+      audit: {
+        path: '/api/agent/audit',
+        merchantPath: '/api/merchant/audit',
+        description:
+          'Query audit events (actor, role, method, pathPrefix, pathContains, status, code, traceId, since, until, limit)',
+      },
+      rbac: {
+        roles: ['customer', 'merchant', 'agent'],
+        surfaces: {
+          customer: ['customer', 'agent'],
+          merchant: ['merchant', 'agent'],
+          agent: ['agent'],
+          audit: ['agent', 'merchant'],
+        },
+      },
       observability: {
         traceHeader: 'x-trace-id',
         metricsPath: '/metrics',
@@ -87,6 +125,7 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
         'GET /api/agent/orders',
         'GET /api/agent/audit',
       ],
+      audit: ['GET /api/agent/audit', 'GET /api/merchant/audit'],
     },
     mcp: {
       tools: Object.entries(TOOL_DESCRIPTIONS).map(([name, description]) => ({
