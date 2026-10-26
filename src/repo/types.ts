@@ -7,7 +7,7 @@ import type { Payment } from '../domain/payment.js'
 import type { ReturnRequest } from '../domain/return.js'
 import type { IdempotencyRecord } from '../domain/idempotency.js'
 
-/** Snapshot persisted by the JSON file repository. */
+/** Snapshot shape shared by JSON and SQLite repositories. */
 export type CommerceDb = {
   products: Product[]
   stock: StockLevel[]
@@ -35,8 +35,8 @@ export function emptyDb(): CommerceDb {
 }
 
 /**
- * Repository port — swap JSON file implementation for SQLite later
- * without changing domain / service callers.
+ * Repository port — JSON file or SQLite adapters.
+ * Domain / service callers stay backend-agnostic.
  */
 export interface CommerceRepository {
   read(): Promise<CommerceDb>

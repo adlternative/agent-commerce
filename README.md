@@ -12,7 +12,8 @@ npm run build
 # 先编译后端到 dist-server/（server / mcp 脚本会自动 prebuild）
 npm run build:server
 
-# API（默认 :8787，写入 data/commerce.json，并种子演示商品）
+# API（默认 :8787，写入 data/commerce.sqlite，并种子演示商品）
+# 若存在旧的 data/commerce.json 且 SQLite 为空，启动时自动导入一次
 npm run server
 
 # 顾客前台 + 商家后台（Vite :5173，代理 /api → :8787）
@@ -58,7 +59,8 @@ npm run mcp
 | `npm run openapi:check` | 校验已提交的 OpenAPI 与生成结果一致 |
 | `npm run server` | HTTP API |
 | `npm run mcp` / `mcp:http` | MCP stdio / Streamable HTTP |
+| `npm run migrate` | 对 SQLite 跑 schema migration；可选从 JSON 导入 |
 
 ## 技术栈
 
-TypeScript strict · Node 22 · zod · Vitest · React 18 · Vite · `@modelcontextprotocol/sdk` · 零原生依赖的 JSON 仓储。
+TypeScript strict · Node 22 · zod · Vitest · React 18 · Vite · `@modelcontextprotocol/sdk` · `node:sqlite` 仓储（可回退 JSON）。

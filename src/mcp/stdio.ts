@@ -1,11 +1,12 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { join } from 'node:path'
-import { JsonFileRepository } from '../repo/json-repository.js'
+import { createRepository } from '../repo/create-repository.js'
 import { CommerceService } from '../services/commerce.js'
 import { createMcpServer } from './create-mcp-server.js'
 
-const dataPath = process.env.DATA_PATH ?? join(process.cwd(), 'data', 'commerce.json')
-const commerce = new CommerceService(new JsonFileRepository(dataPath))
+const opened = await createRepository({
+  dataPath: process.env.DATA_PATH,
+})
+const commerce = new CommerceService(opened.repo)
 const server = createMcpServer(commerce)
 const transport = new StdioServerTransport()
 await server.connect(transport)
