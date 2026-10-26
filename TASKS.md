@@ -11,7 +11,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | W5 | Structured logs, metrics, OpenAPI regression | Done | #633 @ `b06ea85`; 18 files / 69 tests |
 | W6 | API Key/JWT, RBAC, rate limit, audit API | Done | #638 @ `b17f711`; 26 files / 129 tests |
 | W7 | E2E customer order + merchant ship | Queued | |
-| W8 | MCP resources, prompts, errors, sampling | In progress | templates+completion, polished prompts, domain→MCP errors, sampling tool |
+| W8 | MCP resources, prompts, errors, sampling | Done | #639 @ `e7e27de`; 30 files / 142 tests |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.
