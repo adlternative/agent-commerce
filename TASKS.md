@@ -9,7 +9,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | W3 | Payment webhook, inventory hold, fulfillment | Done | Webhook idempotency + 15m hold auto-release + ship/receive/refund loop |
 | W4 | Full-text search, agentNotes ranking, cursors | Done | Ranked FTS + CJK fallback; agentNotes weighted; stable score/id keyset; #632 |
 | W5 | Structured logs, metrics, OpenAPI regression | Done | #633 @ `b06ea85`; 18 files / 69 tests |
-| W6 | API Key/JWT, RBAC, rate limit, audit API | In progress | API Key + HS256 JWT (node:crypto), three-role RBAC, pressure-tested rate limit, audit query API |
+| W6 | API Key/JWT, RBAC, rate limit, audit API | Done | #638 @ `b17f711`; 26 files / 129 tests |
 | W7 | E2E customer order + merchant ship | Queued | |
 | W8 | MCP resources, prompts, errors, sampling | Queued | |
 
