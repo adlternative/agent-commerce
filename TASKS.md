@@ -13,7 +13,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | W7 | E2E customer order + merchant ship | Done | [#637](https://github.com/adlternative/agent-commerce/pull/637) Playwright place+pay + ship; 30 files / 142 unit + 2 e2e |
 | W8 | MCP resources, prompts, errors, sampling | Done | #639 @ `e7e27de`; 30 files / 142 tests |
 | W9-1 | healthz/readyz + 404 NOT_FOUND | Done | #642 @ `9a42992`; public /healthz+/readyz (sqlite RW); unmatched → 404; 31 files / 149 unit + 2 e2e |
-| W9-2 | Metrics path cardinality cap | Queued | After W9-1 |
+| W9-2 | Metrics path cardinality cap | In progress | Unmatched → path="<unmatched>"; templates for params; cardinality ≤ 3 |
 | W9-3 | Agent scope split | Done | #646 @ `3fcd5e7`; `agent:customer`/`agent:merchant`; no implicit merchant; 31 files / 151 unit + 2 e2e |
 | W9-4 | Playwright free port | Done | #643 @ `7e0d94d`; Prefer `PW_PORT` / auto-pick when occupied; `reuseExistingServer: false`; 31 files / 149 unit + 2 e2e |
 
