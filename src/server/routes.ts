@@ -4,6 +4,8 @@ import type { Router } from './router.js'
 import { DomainError } from '../domain/errors.js'
 import { PromotionSchema } from '../domain/promotion.js'
 import { UpsertProductInputSchema } from '../domain/product.js'
+import { paginate } from '../ai/pagination.js'
+import type { AuditLog } from '../ai/audit.js'
 
 function requireKey(key: string | undefined): string {
   if (!key) {
@@ -45,13 +47,24 @@ const CreateCartSchema = z
  * Register customer / merchant / agent route groups on the shared router.
  * Agent routes mirror customer shopping + a subset of merchant ops for LLM tools.
  */
-export function registerRoutes(router: Router, commerce: CommerceService): void {
+export function registerRoutes(
+  router: Router,
+  commerce: CommerceService,
+  deps: { audit?: AuditLog } = {},
+): void {
   // ── Customer ──────────────────────────────────────────────
   router.on('GET', '/api/customer/products', ['customer', 'agent'], async (ctx) => {
-    return commerce.listProducts({
+    const products = await commerce.listProducts({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
     })
+    if (ctx.query.has('cursor') || ctx.query.has('limit')) {
+      return paginate(products, {
+        cursor: ctx.query.get('cursor'),
+        limit: ctx.query.get('limit') ? Number(ctx.query.get('limit')) : undefined,
+      })
+    }
+    return products
   })
 
   router.on('GET', '/api/customer/products/:id', ['customer', 'agent'], async (ctx) => {
@@ -200,10 +213,17 @@ export function registerRoutes(router: Router, commerce: CommerceService): void 
       | 'cancelled'
       | 'refunded'
       | null
-    return commerce.listOrders({
+    const orders = await commerce.listOrders({
       customerId: ctx.query.get('customerId') ?? undefined,
       status: status ?? undefined,
     })
+    if (ctx.query.has('cursor') || ctx.query.has('limit')) {
+      return paginate(orders, {
+        cursor: ctx.query.get('cursor'),
+        limit: ctx.query.get('limit') ? Number(ctx.query.get('limit')) : undefined,
+      })
+    }
+    return orders
   })
 
   router.on('POST', '/api/merchant/orders/:id/ship', ['merchant', 'agent'], async (ctx) => {
@@ -220,11 +240,23 @@ export function registerRoutes(router: Router, commerce: CommerceService): void 
   })
 
   // ── Agent (aliases for LLM-friendly paths; same handlers) ─
+  router.on('GET', '/api/agent/audit', ['agent', 'merchant'], async (ctx) => {
+    const limit = ctx.query.get('limit') ? Number(ctx.query.get('limit')) : 50
+    return { events: deps.audit?.list(limit) ?? [] }
+  })
+
   router.on('GET', '/api/agent/products', ['agent'], async (ctx) => {
-    return commerce.listProducts({
+    const products = await commerce.listProducts({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
     })
+    if (ctx.query.has('cursor') || ctx.query.has('limit')) {
+      return paginate(products, {
+        cursor: ctx.query.get('cursor'),
+        limit: ctx.query.get('limit') ? Number(ctx.query.get('limit')) : undefined,
+      })
+    }
+    return products
   })
 
   router.on('GET', '/api/agent/products/:id', ['agent'], async (ctx) => {
