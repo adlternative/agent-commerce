@@ -29,6 +29,12 @@ describe('API key + JWT auth', () => {
     expect(authenticate(fakeReq({ 'x-api-key': 'agent-key' }), DEFAULT_AUTH)).toEqual({
       role: 'agent',
       subject: 'agent_demo',
+      scopes: ['agent:customer'],
+    })
+    expect(authenticate(fakeReq({ 'x-api-key': 'agent-merchant-key' }), DEFAULT_AUTH)).toEqual({
+      role: 'agent',
+      subject: 'agent_merchant_demo',
+      scopes: ['agent:merchant'],
     })
   })
 
@@ -48,9 +54,23 @@ describe('API key + JWT auth', () => {
   })
 
   it('mints and verifies HS256 JWTs without external deps', () => {
-    const token = signJwt({ sub: 'agent_jwt', role: 'agent' }, DEFAULT_JWT_SECRET)
+    const token = signJwt(
+      { sub: 'agent_jwt', role: 'agent', scopes: ['agent:customer'] },
+      DEFAULT_JWT_SECRET,
+    )
     const actor = verifyJwt(token, { secret: DEFAULT_JWT_SECRET })
-    expect(actor).toEqual({ role: 'agent', subject: 'agent_jwt' })
+    expect(actor).toEqual({
+      role: 'agent',
+      subject: 'agent_jwt',
+      scopes: ['agent:customer'],
+    })
+  })
+
+  it('agent JWT without scopes authenticates but has no scopes claim', () => {
+    const token = signJwt({ sub: 'agent_bare', role: 'agent' }, DEFAULT_JWT_SECRET)
+    const actor = verifyJwt(token, { secret: DEFAULT_JWT_SECRET })
+    expect(actor).toEqual({ role: 'agent', subject: 'agent_bare' })
+    expect(actor.scopes).toBeUndefined()
   })
 
   it('rejects tampered JWT signatures', () => {
@@ -95,11 +115,31 @@ describe('API key + JWT auth', () => {
       })
       expect(byKey.status).toBe(200)
 
-      const jwt = signJwt({ sub: 'agent_http', role: 'agent' }, DEFAULT_JWT_SECRET)
+      const jwt = signJwt(
+        { sub: 'agent_http', role: 'agent', scopes: ['agent:customer'] },
+        DEFAULT_JWT_SECRET,
+      )
       const byJwt = await fetch(`${baseUrl}/api/agent/products`, {
         headers: { authorization: `Bearer ${jwt}` },
       })
       expect(byJwt.status).toBe(200)
+
+      const bareAgentJwt = signJwt({ sub: 'agent_no_scope', role: 'agent' }, DEFAULT_JWT_SECRET)
+      const denied = await fetch(`${baseUrl}/api/merchant/metrics`, {
+        headers: { authorization: `Bearer ${bareAgentJwt}` },
+      })
+      expect(denied.status).toBe(403)
+      const deniedBody = (await denied.json()) as { code: string }
+      expect(deniedBody.code).toBe('FORBIDDEN')
+
+      const merchantScoped = signJwt(
+        { sub: 'agent_m', role: 'agent', scopes: ['agent:merchant'] },
+        DEFAULT_JWT_SECRET,
+      )
+      const merchantOk = await fetch(`${baseUrl}/api/merchant/metrics`, {
+        headers: { authorization: `Bearer ${merchantScoped}` },
+      })
+      expect(merchantOk.status).toBe(200)
     } finally {
       await app.close()
     }
@@ -112,10 +152,29 @@ describe('API key + JWT auth', () => {
       jwt: { secret: 'custom-secret' },
     }
     expect(authenticate(fakeReq({ 'x-api-key': 'prod-key' }), config).subject).toBe('m1')
-    const jwt = signJwt({ sub: 'a1', role: 'agent' }, 'custom-secret')
+    const jwt = signJwt(
+      { sub: 'a1', role: 'agent', scopes: ['agent:merchant'] },
+      'custom-secret',
+    )
     expect(authenticate(fakeReq({ authorization: `Bearer ${jwt}` }), config)).toEqual({
       role: 'agent',
       subject: 'a1',
+      scopes: ['agent:merchant'],
+    })
+  })
+
+  it('opaque agent-token carries agent:customer only', () => {
+    expect(authenticate(fakeReq({ authorization: 'Bearer agent-token' }), DEFAULT_AUTH)).toEqual({
+      role: 'agent',
+      subject: 'agent_demo',
+      scopes: ['agent:customer'],
+    })
+    expect(
+      authenticate(fakeReq({ authorization: 'Bearer agent-merchant-token' }), DEFAULT_AUTH),
+    ).toEqual({
+      role: 'agent',
+      subject: 'agent_merchant_demo',
+      scopes: ['agent:merchant'],
     })
   })
 })

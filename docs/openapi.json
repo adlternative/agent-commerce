@@ -15,13 +15,13 @@
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Opaque demo tokens (customer-token | merchant-token | agent-token) or HS256 JWT with claims { sub, role }"
+        "description": "Opaque demo tokens (customer-token | merchant-token | agent-token [agent:customer] | agent-merchant-token [agent:merchant]) or HS256 JWT with claims { sub, role, scopes? }"
       },
       "ApiKeyAuth": {
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "customer-key | merchant-key | agent-key (or Authorization: ApiKey <key>)"
+        "description": "customer-key | merchant-key | agent-key [agent:customer] | agent-merchant-key [agent:merchant] (or Authorization: ApiKey <key>)"
       }
     },
     "parameters": {

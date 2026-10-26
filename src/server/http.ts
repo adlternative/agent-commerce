@@ -12,7 +12,11 @@ export type RequestContext = {
   query: URLSearchParams
   body: unknown
   idempotencyKey?: string
-  actor: { role: 'customer' | 'merchant' | 'agent'; subject: string }
+  actor: {
+    role: 'customer' | 'merchant' | 'agent'
+    subject: string
+    scopes?: Array<'agent:customer' | 'agent:merchant'>
+  }
   /** Correlates structured logs / audit / response header for this request. */
   traceId: string
   log: Logger

@@ -17,12 +17,14 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
         tokens: {
           customer: 'customer-token',
           merchant: 'merchant-token',
-          agent: 'agent-token',
+          agentCustomer: 'agent-token',
+          agentMerchant: 'agent-merchant-token',
         },
         jwt: {
           alg: 'HS256',
-          claims: ['sub', 'role'],
+          claims: ['sub', 'role', 'scopes'],
           roles: ['customer', 'merchant', 'agent'],
+          agentScopes: ['agent:customer', 'agent:merchant'],
         },
       },
       apiKey: {
@@ -31,7 +33,8 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
         keys: {
           customer: 'customer-key',
           merchant: 'merchant-key',
-          agent: 'agent-key',
+          agentCustomer: 'agent-key',
+          agentMerchant: 'agent-merchant-key',
         },
       },
       // Back-compat for older clients that read scheme/tokens only
@@ -40,6 +43,7 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
         customer: 'customer-token',
         merchant: 'merchant-token',
         agent: 'agent-token',
+        agentMerchant: 'agent-merchant-token',
       },
     },
     conventions: {
@@ -70,12 +74,15 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
       },
       rbac: {
         roles: ['customer', 'merchant', 'agent'],
+        agentScopes: ['agent:customer', 'agent:merchant'],
         surfaces: {
-          customer: ['customer', 'agent'],
-          merchant: ['merchant', 'agent'],
-          agent: ['agent'],
-          audit: ['agent', 'merchant'],
+          customer: ['customer', 'agent:customer'],
+          merchant: ['merchant', 'agent:merchant'],
+          agentShopping: ['agent:customer'],
+          agentMerchantOps: ['agent:merchant'],
+          audit: ['agent:merchant', 'merchant'],
         },
+        note: 'Agent role alone grants nothing; merchant routes require agent:merchant scope (403 otherwise).',
       },
       observability: {
         traceHeader: 'x-trace-id',

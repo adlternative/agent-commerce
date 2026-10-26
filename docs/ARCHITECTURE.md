@@ -8,7 +8,7 @@ Agent Commerce is an AI-native commerce stack: human customers, merchants, and A
 2. **Repository** (`src/repo/*`) — `CommerceRepository` port with SQLite (default), JSON-file, and in-memory adapters.
 3. **Service** (`src/services/commerce.ts`) — use-cases; every write takes an **Idempotency-Key**.
 <<<<<<< HEAD
-4. **HTTP** (`src/server/*`) — `node:http` router, API Key + opaque Bearer + HS256 JWT auth, three-role RBAC, OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`.
+4. **HTTP** (`src/server/*`) — `node:http` router, API Key + opaque Bearer + HS256 JWT auth, three-role RBAC with agent scopes (`agent:customer` / `agent:merchant`), OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`.
 5. **MCP** (`src/mcp/*`) — 16 tools + resources + prompts on the same `CommerceService`.
 =======
 4. **HTTP** (`src/server/*`) — `node:http` router, Bearer role auth, OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`.

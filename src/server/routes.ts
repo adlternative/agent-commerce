@@ -62,7 +62,8 @@ const CreateCartSchema = z
 
 /**
  * Register customer / merchant / agent route groups on the shared router.
- * Agent routes mirror customer shopping + a subset of merchant ops for LLM tools.
+ * Agent shopping aliases require `agent:customer`; merchant-ops aliases require `agent:merchant`.
+ * Bare agent role never grants merchant (or customer) access.
  */
 export function registerRoutes(
   router: Router,
@@ -70,7 +71,7 @@ export function registerRoutes(
   deps: { audit?: AuditLog } = {},
 ): void {
   // ── Customer ──────────────────────────────────────────────
-  router.on('GET', '/api/customer/products', ['customer', 'agent'], async (ctx) => {
+  router.on('GET', '/api/customer/products', ['customer', 'agent:customer'], async (ctx) => {
     const ranked = await commerce.rankProducts({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
@@ -78,15 +79,15 @@ export function registerRoutes(
     return pageProducts(ranked, ctx.query)
   })
 
-  router.on('GET', '/api/customer/products/:id', ['customer', 'agent'], async (ctx) => {
+  router.on('GET', '/api/customer/products/:id', ['customer', 'agent:customer'], async (ctx) => {
     return commerce.getProduct(ctx.params.id!)
   })
 
-  router.on('GET', '/api/customer/inventory/:productId', ['customer', 'agent'], async (ctx) => {
+  router.on('GET', '/api/customer/inventory/:productId', ['customer', 'agent:customer'], async (ctx) => {
     return commerce.checkInventory(ctx.params.productId!)
   })
 
-  router.on('POST', '/api/customer/carts', ['customer', 'agent'], async (ctx) => {
+  router.on('POST', '/api/customer/carts', ['customer', 'agent:customer'], async (ctx) => {
     const body = CreateCartSchema.parse(ctx.body ?? {})
     const customerId =
       body?.customerId ??
@@ -94,11 +95,11 @@ export function registerRoutes(
     return commerce.createCart(customerId, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('GET', '/api/customer/carts/:id', ['customer', 'agent'], async (ctx) => {
+  router.on('GET', '/api/customer/carts/:id', ['customer', 'agent:customer'], async (ctx) => {
     return commerce.getCart(ctx.params.id!)
   })
 
-  router.on('POST', '/api/customer/carts/:id/items', ['customer', 'agent'], async (ctx) => {
+  router.on('POST', '/api/customer/carts/:id/items', ['customer', 'agent:customer'], async (ctx) => {
     const body = AddItemSchema.parse(ctx.body)
     return commerce.addItem(
       ctx.params.id!,
@@ -111,7 +112,7 @@ export function registerRoutes(
   router.on(
     'PATCH',
     '/api/customer/carts/:id/items/:productId',
-    ['customer', 'agent'],
+    ['customer', 'agent:customer'],
     async (ctx) => {
       const body = UpdateItemSchema.parse(ctx.body)
       return commerce.updateItem(
@@ -126,7 +127,7 @@ export function registerRoutes(
   router.on(
     'DELETE',
     '/api/customer/carts/:id/items/:productId',
-    ['customer', 'agent'],
+    ['customer', 'agent:customer'],
     async (ctx) => {
       return commerce.removeItem(
         ctx.params.id!,
@@ -136,37 +137,37 @@ export function registerRoutes(
     },
   )
 
-  router.on('POST', '/api/customer/carts/:id/promotion', ['customer', 'agent'], async (ctx) => {
+  router.on('POST', '/api/customer/carts/:id/promotion', ['customer', 'agent:customer'], async (ctx) => {
     const body = PromoCodeSchema.parse(ctx.body)
     return commerce.applyPromotion(ctx.params.id!, body.code, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('GET', '/api/customer/carts/:id/quote', ['customer', 'agent'], async (ctx) => {
+  router.on('GET', '/api/customer/carts/:id/quote', ['customer', 'agent:customer'], async (ctx) => {
     return commerce.quoteCart(ctx.params.id!)
   })
 
-  router.on('POST', '/api/customer/orders', ['customer', 'agent'], async (ctx) => {
+  router.on('POST', '/api/customer/orders', ['customer', 'agent:customer'], async (ctx) => {
     const body = z.object({ cartId: z.string().min(1) }).parse(ctx.body)
     return commerce.placeOrder(body.cartId, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('GET', '/api/customer/orders/:id', ['customer', 'agent'], async (ctx) => {
+  router.on('GET', '/api/customer/orders/:id', ['customer', 'agent:customer'], async (ctx) => {
     return commerce.getOrder(ctx.params.id!)
   })
 
-  router.on('POST', '/api/customer/orders/:id/pay', ['customer', 'agent'], async (ctx) => {
+  router.on('POST', '/api/customer/orders/:id/pay', ['customer', 'agent:customer'], async (ctx) => {
     return commerce.payOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('POST', '/api/customer/orders/:id/cancel', ['customer', 'agent'], async (ctx) => {
+  router.on('POST', '/api/customer/orders/:id/cancel', ['customer', 'agent:customer'], async (ctx) => {
     return commerce.cancelOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('POST', '/api/customer/orders/:id/receive', ['customer', 'agent'], async (ctx) => {
+  router.on('POST', '/api/customer/orders/:id/receive', ['customer', 'agent:customer'], async (ctx) => {
     return commerce.receiveOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('POST', '/api/customer/orders/:id/returns', ['customer', 'agent'], async (ctx) => {
+  router.on('POST', '/api/customer/orders/:id/returns', ['customer', 'agent:customer'], async (ctx) => {
     const body = ReturnSchema.parse(ctx.body)
     return commerce.requestReturn(
       ctx.params.id!,
@@ -176,7 +177,7 @@ export function registerRoutes(
   })
 
   // ── Payment webhooks (provider callbacks; idempotent on eventId) ─
-  router.on('POST', '/api/webhooks/payment', ['merchant', 'agent'], async (ctx) => {
+  router.on('POST', '/api/webhooks/payment', ['merchant', 'agent:merchant'], async (ctx) => {
     const body = z
       .object({
         eventId: z.string().min(1),
@@ -189,11 +190,11 @@ export function registerRoutes(
   })
 
   // ── Merchant ──────────────────────────────────────────────
-  router.on('GET', '/api/merchant/metrics', ['merchant', 'agent'], async () => {
+  router.on('GET', '/api/merchant/metrics', ['merchant', 'agent:merchant'], async () => {
     return commerce.getMetrics()
   })
 
-  router.on('GET', '/api/merchant/products', ['merchant', 'agent'], async (ctx) => {
+  router.on('GET', '/api/merchant/products', ['merchant', 'agent:merchant'], async (ctx) => {
     return commerce.listProducts({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
@@ -201,16 +202,16 @@ export function registerRoutes(
     })
   })
 
-  router.on('GET', '/api/merchant/inventory/:productId', ['merchant', 'agent'], async (ctx) => {
+  router.on('GET', '/api/merchant/inventory/:productId', ['merchant', 'agent:merchant'], async (ctx) => {
     return commerce.checkInventory(ctx.params.productId!)
   })
 
-  router.on('POST', '/api/merchant/products', ['merchant', 'agent'], async (ctx) => {
+  router.on('POST', '/api/merchant/products', ['merchant', 'agent:merchant'], async (ctx) => {
     const body = UpsertProductInputSchema.parse(ctx.body)
     return commerce.upsertProduct(body, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('PUT', '/api/merchant/products/:id', ['merchant', 'agent'], async (ctx) => {
+  router.on('PUT', '/api/merchant/products/:id', ['merchant', 'agent:merchant'], async (ctx) => {
     const body = UpsertProductInputSchema.parse({
       ...(ctx.body as object),
       id: ctx.params.id,
@@ -221,7 +222,7 @@ export function registerRoutes(
   router.on(
     'POST',
     '/api/merchant/products/:id/stock',
-    ['merchant', 'agent'],
+    ['merchant', 'agent:merchant'],
     async (ctx) => {
       const body = AdjustStockSchema.parse(ctx.body)
       return commerce.adjustStock(
@@ -232,7 +233,7 @@ export function registerRoutes(
     },
   )
 
-  router.on('GET', '/api/merchant/orders', ['merchant', 'agent'], async (ctx) => {
+  router.on('GET', '/api/merchant/orders', ['merchant', 'agent:merchant'], async (ctx) => {
     const status = ctx.query.get('status') as
       | 'created'
       | 'paid'
@@ -254,28 +255,28 @@ export function registerRoutes(
     return orders
   })
 
-  router.on('POST', '/api/merchant/orders/:id/ship', ['merchant', 'agent'], async (ctx) => {
+  router.on('POST', '/api/merchant/orders/:id/ship', ['merchant', 'agent:merchant'], async (ctx) => {
     return commerce.shipOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('POST', '/api/merchant/orders/:id/deliver', ['merchant', 'agent'], async (ctx) => {
+  router.on('POST', '/api/merchant/orders/:id/deliver', ['merchant', 'agent:merchant'], async (ctx) => {
     return commerce.deliverOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('POST', '/api/merchant/orders/:id/receive', ['merchant', 'agent'], async (ctx) => {
+  router.on('POST', '/api/merchant/orders/:id/receive', ['merchant', 'agent:merchant'], async (ctx) => {
     return commerce.receiveOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
   router.on(
     'POST',
     '/api/merchant/reservations/release-expired',
-    ['merchant', 'agent'],
+    ['merchant', 'agent:merchant'],
     async () => {
       return commerce.releaseExpiredReservations()
     },
   )
 
-  router.on('POST', '/api/merchant/promotions', ['merchant', 'agent'], async (ctx) => {
+  router.on('POST', '/api/merchant/promotions', ['merchant', 'agent:merchant'], async (ctx) => {
     const body = PromotionSchema.parse(ctx.body)
     return commerce.upsertPromotion(body, requireKey(ctx.idempotencyKey))
   })
@@ -302,12 +303,12 @@ export function registerRoutes(
     return { events, count: events.length }
   }
 
-  router.on('GET', '/api/agent/audit', ['agent', 'merchant'], auditHandler)
-  router.on('GET', '/api/merchant/audit', ['merchant', 'agent'], auditHandler)
+  router.on('GET', '/api/agent/audit', ['agent:merchant', 'merchant'], auditHandler)
+  router.on('GET', '/api/merchant/audit', ['merchant', 'agent:merchant'], auditHandler)
 
   // ── Agent (aliases for LLM-friendly paths; same handlers) ─
 
-  router.on('GET', '/api/agent/products', ['agent'], async (ctx) => {
+  router.on('GET', '/api/agent/products', ['agent:customer'], async (ctx) => {
     const ranked = await commerce.rankProducts({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
@@ -315,15 +316,15 @@ export function registerRoutes(
     return pageProducts(ranked, ctx.query)
   })
 
-  router.on('GET', '/api/agent/products/:id', ['agent'], async (ctx) => {
+  router.on('GET', '/api/agent/products/:id', ['agent:customer'], async (ctx) => {
     return commerce.getProduct(ctx.params.id!)
   })
 
-  router.on('GET', '/api/agent/inventory/:productId', ['agent'], async (ctx) => {
+  router.on('GET', '/api/agent/inventory/:productId', ['agent:customer'], async (ctx) => {
     return commerce.checkInventory(ctx.params.productId!)
   })
 
-  router.on('POST', '/api/agent/carts', ['agent'], async (ctx) => {
+  router.on('POST', '/api/agent/carts', ['agent:customer'], async (ctx) => {
     const body = CreateCartSchema.parse(ctx.body ?? {})
     return commerce.createCart(
       body?.customerId ?? ctx.actor.subject,
@@ -331,7 +332,7 @@ export function registerRoutes(
     )
   })
 
-  router.on('POST', '/api/agent/carts/:id/items', ['agent'], async (ctx) => {
+  router.on('POST', '/api/agent/carts/:id/items', ['agent:customer'], async (ctx) => {
     const body = AddItemSchema.parse(ctx.body)
     return commerce.addItem(
       ctx.params.id!,
@@ -341,7 +342,7 @@ export function registerRoutes(
     )
   })
 
-  router.on('PATCH', '/api/agent/carts/:id/items/:productId', ['agent'], async (ctx) => {
+  router.on('PATCH', '/api/agent/carts/:id/items/:productId', ['agent:customer'], async (ctx) => {
     const body = UpdateItemSchema.parse(ctx.body)
     return commerce.updateItem(
       ctx.params.id!,
@@ -351,7 +352,7 @@ export function registerRoutes(
     )
   })
 
-  router.on('DELETE', '/api/agent/carts/:id/items/:productId', ['agent'], async (ctx) => {
+  router.on('DELETE', '/api/agent/carts/:id/items/:productId', ['agent:customer'], async (ctx) => {
     return commerce.removeItem(
       ctx.params.id!,
       ctx.params.productId!,
@@ -359,33 +360,33 @@ export function registerRoutes(
     )
   })
 
-  router.on('POST', '/api/agent/carts/:id/promotion', ['agent'], async (ctx) => {
+  router.on('POST', '/api/agent/carts/:id/promotion', ['agent:customer'], async (ctx) => {
     const body = PromoCodeSchema.parse(ctx.body)
     return commerce.applyPromotion(ctx.params.id!, body.code, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('GET', '/api/agent/carts/:id/quote', ['agent'], async (ctx) => {
+  router.on('GET', '/api/agent/carts/:id/quote', ['agent:customer'], async (ctx) => {
     return commerce.quoteCart(ctx.params.id!)
   })
 
-  router.on('POST', '/api/agent/orders', ['agent'], async (ctx) => {
+  router.on('POST', '/api/agent/orders', ['agent:customer'], async (ctx) => {
     const body = z.object({ cartId: z.string().min(1) }).parse(ctx.body)
     return commerce.placeOrder(body.cartId, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('GET', '/api/agent/orders/:id', ['agent'], async (ctx) => {
+  router.on('GET', '/api/agent/orders/:id', ['agent:customer'], async (ctx) => {
     return commerce.getOrder(ctx.params.id!)
   })
 
-  router.on('POST', '/api/agent/orders/:id/pay', ['agent'], async (ctx) => {
+  router.on('POST', '/api/agent/orders/:id/pay', ['agent:customer'], async (ctx) => {
     return commerce.payOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('POST', '/api/agent/orders/:id/cancel', ['agent'], async (ctx) => {
+  router.on('POST', '/api/agent/orders/:id/cancel', ['agent:customer'], async (ctx) => {
     return commerce.cancelOrder(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('POST', '/api/agent/orders/:id/returns', ['agent'], async (ctx) => {
+  router.on('POST', '/api/agent/orders/:id/returns', ['agent:customer'], async (ctx) => {
     const body = ReturnSchema.parse(ctx.body)
     return commerce.requestReturn(
       ctx.params.id!,
@@ -394,17 +395,17 @@ export function registerRoutes(
     )
   })
 
-  router.on('POST', '/api/agent/products', ['agent'], async (ctx) => {
+  router.on('POST', '/api/agent/products', ['agent:merchant'], async (ctx) => {
     const body = UpsertProductInputSchema.parse(ctx.body)
     return commerce.upsertProduct(body, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('POST', '/api/agent/products/:id/stock', ['agent'], async (ctx) => {
+  router.on('POST', '/api/agent/products/:id/stock', ['agent:merchant'], async (ctx) => {
     const body = AdjustStockSchema.parse(ctx.body)
     return commerce.adjustStock(ctx.params.id!, body.delta, requireKey(ctx.idempotencyKey))
   })
 
-  router.on('GET', '/api/agent/orders', ['agent'], async (ctx) => {
+  router.on('GET', '/api/agent/orders', ['agent:merchant'], async (ctx) => {
     return commerce.listOrders({
       customerId: ctx.query.get('customerId') ?? undefined,
     })
