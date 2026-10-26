@@ -8,7 +8,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | W2 | SQLite persistence + migrations | Queued | May change package.json |
 | W3 | Payment webhook, inventory hold, fulfillment | Queued | |
 | W4 | Full-text search, agentNotes ranking, cursors | Queued | |
-| W5 | Structured logs, metrics, OpenAPI regression | Queued | |
+| W5 | Structured logs, metrics, OpenAPI regression | In progress | |
 | W6 | API Key/JWT, RBAC, rate limit, audit API | Queued | |
 | W7 | E2E customer order + merchant ship | Queued | |
 | W8 | MCP resources, prompts, errors, sampling | Queued | |

@@ -23,8 +23,9 @@ Document includes:
 2. **Idempotency-Key** — required on every write; same key + same payload replays; same key + different payload → `409 IDEMPOTENCY_KEY_REUSE`.  
 3. **Errors** — `{ code, message, hint?, retryable }`. Respect `retryable` (e.g. `RATE_LIMITED`).  
 4. **Pagination** — `cursor` + `limit` → `{ items, nextCursor, hasMore }`.  
-5. **Audit** — `GET /api/agent/audit` for recent requests (method, path, status, duration, idempotency key).  
-6. **Rate limit** — per `role:subject` token bucket; `429` + `RATE_LIMITED` when exhausted.
+5. **Audit** — `GET /api/agent/audit` for recent requests (method, path, status, duration, idempotency key, `traceId`).  
+6. **Rate limit** — per `role:subject` token bucket; `429` + `RATE_LIMITED` when exhausted.  
+7. **Tracing** — send or read `X-Trace-Id` on every call; scrape `GET /metrics` for request counters.
 
 ## Suggested agent flows
 

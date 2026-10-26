@@ -9,6 +9,8 @@ export type AuditEvent = {
   idempotencyKey?: string
   code?: string
   durationMs: number
+  /** Present when the event was recorded from an HTTP request with a trace id. */
+  traceId?: string
 }
 
 /** In-memory ring buffer audit log for AI/agent observability. */
@@ -31,6 +33,7 @@ export class AuditLog {
       idempotencyKey: partial.idempotencyKey,
       code: partial.code,
       durationMs: partial.durationMs,
+      traceId: partial.traceId,
     }
     this.events.push(event)
     if (this.events.length > this.max) {

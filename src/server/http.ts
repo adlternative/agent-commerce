@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { DomainError, isDomainError } from '../domain/errors.js'
+import type { Logger } from './logger.js'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS'
 
@@ -12,6 +13,9 @@ export type RequestContext = {
   body: unknown
   idempotencyKey?: string
   actor: { role: 'customer' | 'merchant' | 'agent'; subject: string }
+  /** Correlates structured logs / audit / response header for this request. */
+  traceId: string
+  log: Logger
 }
 
 export async function readJsonBody(req: IncomingMessage): Promise<unknown> {

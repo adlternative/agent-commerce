@@ -95,6 +95,24 @@ export function buildOpenApi() {
           responses: ok({ type: 'object', properties: { ok: { type: 'boolean' } } }),
         },
       },
+      '/metrics': {
+        get: {
+          summary: 'Prometheus HTTP metrics',
+          description:
+            'Text exposition of http_requests_total and http_request_duration_ms_* counters. No auth.',
+          security: [],
+          responses: {
+            '200': {
+              description: 'Prometheus text exposition format 0.0.4',
+              content: {
+                'text/plain': {
+                  schema: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
       '/api/customer/products': {
         get: {
           summary: 'List / search products',

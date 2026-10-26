@@ -6,6 +6,8 @@ import { isDomainError } from '../domain/errors.js'
 import type { AuditLog } from '../ai/audit.js'
 import type { TokenBucket } from '../ai/rate-limit.js'
 import { buildAiCommerceDiscovery } from '../ai/well-known.js'
+import { createLogger, resolveTraceId, type Logger } from './logger.js'
+import { HttpMetrics } from './metrics.js'
 
 export type RouteHandler = (ctx: RequestContext) => Promise<unknown> | unknown
 
@@ -14,20 +16,33 @@ export type AiAdapters = {
   audit?: AuditLog
 }
 
+export type Observability = {
+  logger?: Logger
+  metrics?: HttpMetrics
+}
+
 type Route = {
   method: HttpMethod
   pattern: RegExp
   paramNames: string[]
+  /** Path template used for metrics labels (e.g. /api/customer/orders/:id). */
+  pathTemplate: string
   roles: Role[]
   handler: RouteHandler
 }
 
-function corsHeaders(): Record<string, string> {
-  return {
+function corsHeaders(traceId?: string): Record<string, string> {
+  const headers: Record<string, string> = {
     'access-control-allow-origin': '*',
-    'access-control-allow-headers': 'authorization, content-type, idempotency-key',
+    'access-control-allow-headers':
+      'authorization, content-type, idempotency-key, x-trace-id, traceparent',
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'access-control-expose-headers': 'x-trace-id',
   }
+  if (traceId) {
+    headers['x-trace-id'] = traceId
+  }
+  return headers
 }
 
 function statusForCode(code: string): number {
@@ -54,10 +69,10 @@ function statusForCode(code: string): number {
   }
 }
 
-function sendErr(res: ServerResponse, err: unknown): void {
+function sendErr(res: ServerResponse, err: unknown, traceId: string): void {
   if (res.headersSent) return
   if (isDomainError(err)) {
-    sendJson(res, statusForCode(err.code), err.toJSON(), corsHeaders())
+    sendJson(res, statusForCode(err.code), err.toJSON(), corsHeaders(traceId))
     return
   }
   if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'ZodError') {
@@ -71,7 +86,7 @@ function sendErr(res: ServerResponse, err: unknown): void {
         hint: z.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
         retryable: false,
       },
-      corsHeaders(),
+      corsHeaders(traceId),
     )
     return
   }
@@ -83,7 +98,7 @@ function sendErr(res: ServerResponse, err: unknown): void {
       message: err instanceof Error ? err.message : 'internal error',
       retryable: true,
     },
-    corsHeaders(),
+    corsHeaders(traceId),
   )
 }
 
@@ -92,10 +107,23 @@ export class Router {
   private readonly auth: AuthConfig
   private openApiProvider?: () => unknown
   private ai: AiAdapters = {}
+  private readonly logger: Logger
+  private readonly metrics: HttpMetrics
 
-  constructor(auth: AuthConfig, ai: AiAdapters = {}) {
+  constructor(auth: AuthConfig, ai: AiAdapters = {}, obs: Observability = {}) {
     this.auth = auth
     this.ai = ai
+    this.logger = obs.logger ?? createLogger({ service: 'agent-commerce' })
+    this.metrics = obs.metrics ?? new HttpMetrics()
+  }
+
+  getMetrics(): HttpMetrics {
+    return this.metrics
+  }
+
+  /** Registered API route templates (excludes public /health, /metrics, …). */
+  listRoutes(): Array<{ method: HttpMethod; path: string }> {
+    return this.routes.map((r) => ({ method: r.method, path: r.pathTemplate }))
   }
 
   setOpenApiProvider(fn: () => unknown): void {
@@ -112,7 +140,7 @@ export class Router {
           return '([^/]+)'
         })}$`,
     )
-    this.routes.push({ method, pattern, paramNames, roles, handler })
+    this.routes.push({ method, pattern, paramNames, pathTemplate: path, roles, handler })
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -121,30 +149,51 @@ export class Router {
     let roleLabel = 'none'
     let status = 500
     let errorCode: string | undefined
+    let metricPath = req.url?.split('?')[0] ?? '/'
     const method = (req.method ?? 'GET').toUpperCase() as HttpMethod
     const host = req.headers.host ?? 'localhost'
     const url = new URL(req.url ?? '/', `http://${host}`)
+    const traceId = resolveTraceId(req.headers['x-trace-id'], req.headers['traceparent'])
+    const log = this.logger.child({ traceId })
+
+    log.info('request.start', { method, path: url.pathname })
 
     try {
       if (req.method === 'OPTIONS') {
-        res.writeHead(204, corsHeaders())
+        res.writeHead(204, corsHeaders(traceId))
         res.end()
         status = 204
+        metricPath = 'OPTIONS'
         return
       }
 
       if (method === 'GET' && url.pathname === '/health') {
-        sendJson(res, 200, { ok: true }, corsHeaders())
+        metricPath = '/health'
+        sendJson(res, 200, { ok: true }, corsHeaders(traceId))
+        status = 200
+        return
+      }
+      if (method === 'GET' && url.pathname === '/metrics') {
+        metricPath = '/metrics'
+        const body = this.metrics.renderPrometheus()
+        res.writeHead(200, {
+          ...corsHeaders(traceId),
+          'content-type': 'text/plain; version=0.0.4; charset=utf-8',
+          'content-length': Buffer.byteLength(body),
+        })
+        res.end(body)
         status = 200
         return
       }
       if (method === 'GET' && url.pathname === '/.well-known/ai-commerce.json') {
-        sendJson(res, 200, buildAiCommerceDiscovery(`http://${host}`), corsHeaders())
+        metricPath = '/.well-known/ai-commerce.json'
+        sendJson(res, 200, buildAiCommerceDiscovery(`http://${host}`), corsHeaders(traceId))
         status = 200
         return
       }
       if (method === 'GET' && url.pathname === '/openapi.json' && this.openApiProvider) {
-        sendJson(res, 200, this.openApiProvider(), corsHeaders())
+        metricPath = '/openapi.json'
+        sendJson(res, 200, this.openApiProvider(), corsHeaders(traceId))
         status = 200
         return
       }
@@ -157,6 +206,7 @@ export class Router {
       const match = this.routes.find((r) => r.method === method && r.pattern.test(url.pathname))
       if (!match) {
         status = 404
+        metricPath = url.pathname
         sendJson(
           res,
           404,
@@ -165,10 +215,11 @@ export class Router {
             message: `no route for ${method} ${url.pathname}`,
             retryable: false,
           },
-          corsHeaders(),
+          corsHeaders(traceId),
         )
         return
       }
+      metricPath = match.pathTemplate
       requireRole(actor, match.roles)
 
       const m = match.pattern.exec(url.pathname)!
@@ -190,27 +241,49 @@ export class Router {
         body,
         idempotencyKey,
         actor,
+        traceId,
+        log,
       }
 
       const result = await match.handler(ctx)
       if (result === undefined) {
-        res.writeHead(204, corsHeaders())
+        res.writeHead(204, corsHeaders(traceId))
         res.end()
         status = 204
         return
       }
-      sendJson(res, 200, result, corsHeaders())
+      sendJson(res, 200, result, corsHeaders(traceId))
       status = 200
     } catch (err) {
       if (isDomainError(err)) {
         status = statusForCode(err.code)
         errorCode = err.code
+        log.warn('request.error', { method, path: url.pathname, code: err.code, status })
       } else {
         status = 500
         errorCode = 'INTERNAL_ERROR'
+        log.error('request.error', {
+          method,
+          path: url.pathname,
+          code: errorCode,
+          status,
+          err: err instanceof Error ? err.message : String(err),
+        })
       }
-      sendErr(res, err)
+      sendErr(res, err, traceId)
     } finally {
+      const durationMs = Date.now() - started
+      this.metrics.record(method, metricPath, status, durationMs)
+      log.info('request.end', {
+        method,
+        path: url.pathname,
+        route: metricPath,
+        status,
+        durationMs,
+        actor: actorLabel,
+        role: roleLabel,
+        code: errorCode,
+      })
       this.ai.audit?.record({
         actor: actorLabel,
         role: roleLabel,
@@ -219,7 +292,8 @@ export class Router {
         status,
         idempotencyKey: getIdempotencyKey(req),
         code: errorCode,
-        durationMs: Date.now() - started,
+        durationMs,
+        traceId,
       })
     }
   }
