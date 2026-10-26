@@ -268,3 +268,69 @@ textarea {
     grid-column: 1 / -1;
   }
 }
+
+nav a {
+  font: inherit;
+  color: var(--ink);
+  text-decoration: none;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--sea) 35%, transparent);
+  background: color-mix(in srgb, white 70%, transparent);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.metrics div {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.metrics dt {
+  font-size: 0.85rem;
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+.metrics dd {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--sea-deep);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.merchant-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.muted {
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+  font-size: 0.9rem;
+}
