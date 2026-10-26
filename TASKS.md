@@ -12,7 +12,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | W6 | API Key/JWT, RBAC, rate limit, audit API | Done | #638 @ `b17f711`; 26 files / 129 tests |
 | W7 | E2E customer order + merchant ship | Done | [#637](https://github.com/adlternative/agent-commerce/pull/637) Playwright place+pay + ship; 30 files / 142 unit + 2 e2e |
 | W8 | MCP resources, prompts, errors, sampling | Done | #639 @ `e7e27de`; 30 files / 142 tests |
-| W9-1 | healthz/readyz + 404 NOT_FOUND | In progress | Public probes; store RW readiness; unmatched → 404 before auth |
+| W9-1 | healthz/readyz + 404 NOT_FOUND | Done | #642 @ `9a42992`; public /healthz+/readyz (sqlite RW); unmatched → 404; 31 files / 149 unit + 2 e2e |
 | W9-2 | Metrics path cardinality cap | Queued | After W9-1 |
 | W9-3 | Agent scope split | Queued | After W9-1 |
 
