@@ -8,12 +8,15 @@ import { Router } from './router.js'
 import { DEFAULT_AUTH, type AuthConfig } from './auth.js'
 import { registerRoutes } from './routes.js'
 import { buildOpenApi } from './openapi.js'
+import { seedDemoCatalog } from './seed.js'
 
 export type CreateServerOptions = {
   repo?: CommerceRepository
   auth?: AuthConfig
   /** When set, write docs/openapi.json on boot (optional). */
   openApiOutPath?: string
+  /** Seed demo catalog when empty (default true for JSON file boots). */
+  seedDemo?: boolean
 }
 
 export type AppServer = {
@@ -41,6 +44,9 @@ export function createAppServer(opts: CreateServerOptions = {}): AppServer {
       if (opts.openApiOutPath) {
         await mkdir(dirname(opts.openApiOutPath), { recursive: true })
         await writeFile(opts.openApiOutPath, JSON.stringify(buildOpenApi(), null, 2))
+      }
+      if (opts.seedDemo) {
+        await seedDemoCatalog(commerce)
       }
       await new Promise<void>((resolve) => {
         server.listen(port, '127.0.0.1', () => resolve())
