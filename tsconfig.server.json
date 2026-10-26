@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "declaration": false,
+    "sourceMap": true,
+    "outDir": "dist-server",
+    "rootDir": "src",
+    "types": ["node"],
+    "noEmit": false
+  },
+  "include": [
+    "src/server/**/*",
+    "src/mcp/**/*",
+    "src/domain/**/*",
+    "src/repo/**/*",
+    "src/services/**/*",
+    "src/ai/**/*"
+  ],
+  "exclude": ["src/App.tsx", "src/main.tsx", "src/api/**/*", "src/merchant/**/*"]
+}

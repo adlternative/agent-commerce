@@ -9,6 +9,9 @@ npm ci
 npm test
 npm run build
 
+# 先编译后端到 dist-server/（server / mcp 脚本会自动 prebuild）
+npm run build:server
+
 # API（默认 :8787，写入 data/commerce.json，并种子演示商品）
 npm run server
 
@@ -16,7 +19,7 @@ npm run server
 npm run dev
 # 打开 http://localhost:5173/ 与 http://localhost:5173/#/merchant
 
-# MCP stdio
+# MCP stdio（同样跑编译产物）
 npm run mcp
 ```
 
