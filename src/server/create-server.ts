@@ -55,7 +55,16 @@ export function createAppServer(opts: CreateServerOptions = {}): AppServer {
       process.env.VITEST ? { sink: () => {} } : undefined,
     )
   const metrics = opts.observability?.metrics ?? new HttpMetrics()
-  const router = new Router(opts.auth ?? DEFAULT_AUTH, { audit, rateLimit }, { logger, metrics })
+  const readiness =
+    opts.observability?.readiness ??
+    (async () => {
+      await repo.checkReady()
+    })
+  const router = new Router(
+    opts.auth ?? DEFAULT_AUTH,
+    { audit, rateLimit },
+    { logger, metrics, readiness },
+  )
   router.setOpenApiProvider(() => buildOpenApi())
   registerRoutes(router, commerce, { audit })
 

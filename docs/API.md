@@ -75,10 +75,14 @@ Mirrors shopping + merchant ops for LLM clients (same `CommerceService`). Extra:
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/health` | liveness |
+| GET | `/healthz` | liveness (no auth) |
+| GET | `/readyz` | readiness — store read/write probe (no auth); `503 STORE_NOT_READY` on failure |
+| GET | `/health` | liveness alias of `/healthz` |
 | GET | `/metrics` | Prometheus text (`http_requests_total`, duration sum/count) |
 | GET | `/openapi.json` | OpenAPI 3.1 document |
 | GET | `/.well-known/ai-commerce.json` | AI capability discovery |
+
+Unmatched routes return **`404`** with `{ "code": "NOT_FOUND", ... }` (auth is not required to discover that a path is missing).
 
 ## Observability
 

@@ -48,6 +48,28 @@ export class JsonFileRepository implements CommerceRepository {
     return run
   }
 
+  async checkReady(): Promise<void> {
+    try {
+      await this.read()
+      await this.transaction((db) => {
+        void db
+      })
+    } catch (err) {
+      if (err instanceof DomainError && err.code === 'STORE_NOT_READY') throw err
+      if (err instanceof DomainError) {
+        throw new DomainError('STORE_NOT_READY', err.message, {
+          cause: err,
+          retryable: true,
+          hint: err.hint,
+        })
+      }
+      throw new DomainError('STORE_NOT_READY', 'JSON store not readable/writable', {
+        cause: err,
+        retryable: true,
+      })
+    }
+  }
+
   private async persist(db: CommerceDb): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true })
     const tmp = `${this.path}.${process.pid}.${Date.now()}.tmp`
@@ -88,5 +110,12 @@ export class MemoryRepository implements CommerceRepository {
       () => undefined,
     )
     return run
+  }
+
+  async checkReady(): Promise<void> {
+    await this.read()
+    await this.transaction((db) => {
+      void db
+    })
   }
 }
