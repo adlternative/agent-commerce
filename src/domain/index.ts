@@ -1,6 +1,7 @@
 export * from './errors.js'
 export * from './money.js'
 export * from './product.js'
+export * from './search.js'
 export * from './inventory.js'
 export * from './promotion.js'
 export * from './cart.js'

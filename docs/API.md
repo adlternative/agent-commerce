@@ -90,3 +90,5 @@ Pass `?limit=20&cursor=<opaque>`. Response when paging:
 ```json
 { "items": [], "nextCursor": "...", "hasMore": true }
 ```
+
+Product search cursors are **stable keysets** (`score`, `id`) over ranked results (FTS with Chinese character fallback; `agentNotes` participates in ranking). Merchant order lists still use opaque offset cursors.

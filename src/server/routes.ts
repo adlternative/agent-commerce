@@ -4,8 +4,24 @@ import type { Router } from './router.js'
 import { DomainError } from '../domain/errors.js'
 import { PromotionSchema } from '../domain/promotion.js'
 import { UpsertProductInputSchema } from '../domain/product.js'
-import { paginate } from '../ai/pagination.js'
+import { paginate, paginateStable } from '../ai/pagination.js'
 import type { AuditLog } from '../ai/audit.js'
+
+function pageProducts(
+  ranked: Awaited<ReturnType<CommerceService['rankProducts']>>,
+  query: URLSearchParams,
+) {
+  if (query.has('cursor') || query.has('limit')) {
+    return paginateStable(
+      ranked.map((h) => ({ item: h.product, score: h.score, id: h.product.id })),
+      {
+        cursor: query.get('cursor'),
+        limit: query.get('limit') ? Number(query.get('limit')) : undefined,
+      },
+    )
+  }
+  return ranked.map((h) => h.product)
+}
 
 function requireKey(key: string | undefined): string {
   if (!key) {
@@ -54,17 +70,11 @@ export function registerRoutes(
 ): void {
   // ── Customer ──────────────────────────────────────────────
   router.on('GET', '/api/customer/products', ['customer', 'agent'], async (ctx) => {
-    const products = await commerce.listProducts({
+    const ranked = await commerce.rankProducts({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
     })
-    if (ctx.query.has('cursor') || ctx.query.has('limit')) {
-      return paginate(products, {
-        cursor: ctx.query.get('cursor'),
-        limit: ctx.query.get('limit') ? Number(ctx.query.get('limit')) : undefined,
-      })
-    }
-    return products
+    return pageProducts(ranked, ctx.query)
   })
 
   router.on('GET', '/api/customer/products/:id', ['customer', 'agent'], async (ctx) => {
@@ -276,17 +286,11 @@ export function registerRoutes(
   })
 
   router.on('GET', '/api/agent/products', ['agent'], async (ctx) => {
-    const products = await commerce.listProducts({
+    const ranked = await commerce.rankProducts({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
     })
-    if (ctx.query.has('cursor') || ctx.query.has('limit')) {
-      return paginate(products, {
-        cursor: ctx.query.get('cursor'),
-        limit: ctx.query.get('limit') ? Number(ctx.query.get('limit')) : undefined,
-      })
-    }
-    return products
+    return pageProducts(ranked, ctx.query)
   })
 
   router.on('GET', '/api/agent/products/:id', ['agent'], async (ctx) => {
