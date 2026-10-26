@@ -12,9 +12,12 @@
     "preview": "vite preview",
     "test": "vitest run",
     "server": "node --experimental-strip-types --experimental-transform-types src/server/index.ts",
+    "mcp": "node --experimental-strip-types --experimental-transform-types src/mcp/stdio.ts",
+    "mcp:http": "node --experimental-strip-types --experimental-transform-types src/mcp/http.ts",
     "openapi": "vitest run tests/server/openapi.test.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.25.76"
