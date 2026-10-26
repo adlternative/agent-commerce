@@ -5,13 +5,8 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ID | Workflow | Status | Notes |
 |----|----------|--------|-------|
 | W1 | Server/MCP runtime compile + CI smoke | Done | `tsconfig.server.json` → `dist-server/`; boot + MCP stdio smokes; landed in #630 |
-<<<<<<< HEAD
-| W2 | SQLite persistence + migrations | Queued | May change package.json |
+| W2 | SQLite persistence + migrations | Done | `node:sqlite` + JSON→SQLite migrate; concurrency tests; #634 |
 | W3 | Payment webhook, inventory hold, fulfillment | Done | Webhook idempotency + 15m hold auto-release + ship/receive/refund loop |
-=======
-| W2 | SQLite persistence + migrations | In Progress | `node:sqlite` + JSON→SQLite migrate; concurrency tests |
-| W3 | Payment webhook, inventory hold, fulfillment | Queued | |
->>>>>>> b0804d1 (feat(w2): SQLite persistence with migrations and concurrency tests)
 | W4 | Full-text search, agentNotes ranking, cursors | Queued | |
 | W5 | Structured logs, metrics, OpenAPI regression | In progress | |
 | W6 | API Key/JWT, RBAC, rate limit, audit API | Queued | |
