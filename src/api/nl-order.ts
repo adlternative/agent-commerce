@@ -9,6 +9,23 @@ export type NlOrderResult = {
   error?: string
 }
 
+const CN_QTY: Record<string, number> = {
+  一: 1,
+  二: 2,
+  两: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
+  十: 10,
+}
+
+const CN_NUM = '[一二两三四五六七八九十]'
+const UNIT = '(?:件|个|盒|份)'
+
 /**
  * Lightweight natural-language → /api/agent/* orchestrator.
  * No pricing/stock math here — all business rules stay on the server.
@@ -23,40 +40,44 @@ export function parseNlIntent(text: string): {
     promoMatch?.[1]?.toUpperCase() ??
     text.match(/\b([A-Z]{2,}\d{2,})\b/)?.[1]?.toUpperCase()
 
-  const cnQty: Record<string, number> = {
-    一: 1,
-    二: 2,
-    两: 2,
-    三: 3,
-    四: 4,
-    五: 5,
-    六: 6,
-    七: 7,
-    八: 8,
-    九: 9,
-    十: 10,
-  }
-  const cnMatch = text.match(/(?:买|购|要|加)\s*([一二两三四五六七八九十])\s*(?:件|个|盒|份)?/)
+  // Verb optional: 「两件 Agent Mug」 must parse without 买/购/要/加.
+  const cnMatch =
+    text.match(new RegExp(`(?:买|购|要|加)\\s*(${CN_NUM})\\s*${UNIT}?`)) ??
+    text.match(new RegExp(`(${CN_NUM})\\s*${UNIT}`))
+
+  // English buy/get/order N, ASCII N+unit, or xN — not ASCII-only-with-unit.
   const qtyMatch =
-    text.match(/(?:买|购|要|加)\s*(\d+)\s*(?:件|个|盒|份)?/) ??
-    text.match(/(\d+)\s*(?:件|个|x|×)/i) ??
+    text.match(/(?:买|购|要|加|buy|get|order)\s*(\d+)\s*(?:件|个|盒|份|x|×)?/i) ??
+    text.match(/(\d+)\s*(?:件|个|盒|份|x|×)/i) ??
     text.match(/\bx\s*(\d+)\b/i)
+
   const quantity = cnMatch
-    ? (cnQty[cnMatch[1]!] ?? 1)
+    ? (CN_QTY[cnMatch[1]!] ?? 1)
     : qtyMatch
       ? Number(qtyMatch[1])
       : 1
 
+  // Strip qty phrasing including Chinese numerals (\\d* alone misses 两).
   let query = text
     .replace(/(?:帮我|请|麻烦)/g, ' ')
-    .replace(/(?:买|购|要|下单)\s*\d*\s*(?:件|个|盒|份)?/g, ' ')
+    .replace(
+      new RegExp(`(?:买|购|要|加|下单|buy|get|order)\\s*(?:${CN_NUM}|\\d+)?\\s*${UNIT}?`, 'gi'),
+      ' ',
+    )
+    .replace(new RegExp(`${CN_NUM}\\s*${UNIT}`, 'g'), ' ')
+    .replace(/\d+\s*(?:件|个|盒|份|x|×)/gi, ' ')
+    .replace(/\bx\s*\d+\b/gi, ' ')
     .replace(/(?:用掉?|使用)?\s*(?:这张)?\s*(?:券|优惠码?|coupon|code)\s*[A-Z0-9_-]*/gi, ' ')
     .replace(/\b[A-Z]{2,}\d{2,}\b/g, ' ')
     .replace(/[，。！？、]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
-  if (!query) query = text.trim()
 
-  return { quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1, query, promo }
+  return {
+    quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+    query,
+    promo,
+  }
 }
 
 export async function runNlOrder(
@@ -70,6 +91,10 @@ export async function runNlOrder(
       type: 'parse',
       detail: `qty=${intent.quantity} query="${intent.query}" promo=${intent.promo ?? '—'}`,
     })
+
+    if (!intent.query) {
+      return { steps, error: '没听懂数量或商品名' }
+    }
 
     const products = await api.agent.listProducts(intent.query)
     steps.push({ type: 'search', detail: `found ${products.length} product(s)` })
