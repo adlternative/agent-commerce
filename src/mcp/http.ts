@@ -2,19 +2,28 @@
  * Optional Streamable HTTP transport for MCP.
  * Start with: MCP_HTTP_PORT=8790 npm run mcp:http
  *
- * Stateless per-request demo: each HTTP request gets a fresh MCP server +
+ * Stateless per-request: each HTTP request gets a fresh MCP server +
  * transport (`sessionIdGenerator: undefined`). Domain state lives in the shared
  * CommerceService / repository, so cart + order flows work across requests.
+ *
+ * Auth matches REST: Authorization Bearer JWT/opaque token or X-API-Key /
+ * Authorization: ApiKey. Demo credentials honor ALLOW_DEMO_TOKENS the same way.
+ * Merchant tools (upsert_product / adjust_stock / list_orders) require
+ * merchant or agent:merchant.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { isDomainError } from '../domain/errors.js'
 import { createRepository } from '../repo/create-repository.js'
+import { authenticate, buildAuthConfig } from '../server/auth.js'
 import { CommerceService } from '../services/commerce.js'
 import { createMcpServer } from './create-mcp-server.js'
+import { toMappedErrorBody } from './errors.js'
 
 const port = Number(process.env.MCP_HTTP_PORT ?? 8790)
 const opened = await createRepository()
 const commerce = new CommerceService(opened.repo)
+const auth = buildAuthConfig()
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
@@ -25,10 +34,30 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(payload)
 }
 
+function sendAuthError(res: ServerResponse, err: unknown): void {
+  const body = toMappedErrorBody(err)
+  const status = isDomainError(err) && err.code === 'UNAUTHORIZED' ? 401 : 403
+  sendJson(res, status, {
+    jsonrpc: '2.0',
+    error: {
+      code: body.mcpErrorCode,
+      message: body.message,
+      data: body,
+    },
+    id: null,
+  })
+}
+
 async function handleMcpPost(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  // Optional auth headers (Authorization / X-API-Key) are accepted and ignored
-  // in this demo transport; pass them from clients via requestInit.headers.
-  const mcp = createMcpServer(commerce)
+  let actor
+  try {
+    actor = authenticate(req, auth)
+  } catch (err) {
+    sendAuthError(res, err)
+    return
+  }
+
+  const mcp = createMcpServer(commerce, { actor })
   const transport = new StreamableHTTPServerTransport({
     // True stateless mode — required for multi-request Client sessions without a session map.
     sessionIdGenerator: undefined,

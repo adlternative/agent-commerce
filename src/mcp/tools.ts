@@ -1,7 +1,26 @@
 import { z } from 'zod'
 import type { CommerceService } from '../services/commerce.js'
 import { UpsertProductInputSchema } from '../domain/product.js'
+import {
+  requireRole,
+  type Actor,
+  type AccessPrincipal,
+} from '../server/auth.js'
 import { toMappedErrorBody } from './errors.js'
+
+/** Merchant-only MCP tools — same surface as REST `/api/merchant/*` writes/lists. */
+export const MERCHANT_TOOL_NAMES = ['upsert_product', 'adjust_stock', 'list_orders'] as const
+export type MerchantToolName = (typeof MERCHANT_TOOL_NAMES)[number]
+
+const MERCHANT_TOOL_SET: ReadonlySet<string> = new Set(MERCHANT_TOOL_NAMES)
+
+/** Principals allowed to call merchant MCP tools (mirrors REST merchant routes). */
+export const MERCHANT_TOOL_ROLES: AccessPrincipal[] = ['merchant', 'agent:merchant']
+
+export type CallToolOptions = {
+  /** When set (HTTP transport), enforce tool-level RBAC. Stdio omits this. */
+  actor?: Actor
+}
 
 /** Shared helper: tool handlers return JSON text content for LLMs. */
 export function toolResult(data: unknown): { content: { type: 'text'; text: string }[] } {
@@ -166,13 +185,18 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
 
 /**
  * Pure handler map used by MCP registration and unit tests (no transport).
+ * Pass `options.actor` from the HTTP transport to enforce merchant-tool RBAC.
  */
 export async function callTool(
   commerce: CommerceService,
   name: ToolName,
   rawArgs: unknown,
+  options: CallToolOptions = {},
 ): Promise<ReturnType<typeof toolResult> | ReturnType<typeof toolError>> {
   try {
+    if (options.actor && MERCHANT_TOOL_SET.has(name)) {
+      requireRole(options.actor, MERCHANT_TOOL_ROLES)
+    }
     switch (name) {
       case 'search_products': {
         const args = ToolSchemas.search_products.parse(rawArgs)

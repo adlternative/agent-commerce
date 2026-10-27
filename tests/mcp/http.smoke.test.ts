@@ -1,6 +1,9 @@
 /**
  * Real-client Streamable HTTP smoke: official SDK Client + StreamableHTTPClientTransport
  * against the compiled `dist-server/mcp/http.js` process.
+ *
+ * Auth: same REST demo credentials (ALLOW_DEMO_TOKENS / non-production). Merchant tools
+ * require merchant-token (or merchant JWT / API key).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { spawn, type ChildProcess, execSync } from 'node:child_process'
@@ -40,6 +43,17 @@ function toolText(result: unknown): string {
   return block!.text!
 }
 
+function toolErrorBody(result: unknown): { code?: string; message?: string } {
+  const r = result as {
+    content?: { type: string; text?: string }[]
+    isError?: boolean
+  }
+  expect(r.isError).toBe(true)
+  const block = r.content?.find((c) => c.type === 'text' && typeof c.text === 'string')
+  expect(block?.text).toBeTruthy()
+  return JSON.parse(block!.text!) as { code?: string; message?: string }
+}
+
 async function waitForListening(child: ChildProcess, port: number, timeoutMs = 20_000): Promise<void> {
   const started = Date.now()
   let stderr = ''
@@ -67,6 +81,21 @@ async function waitForListening(child: ChildProcess, port: number, timeoutMs = 2
   }
 }
 
+function mcpClient(baseUrl: string, authorization: string): {
+  client: Client
+  transport: StreamableHTTPClientTransport
+} {
+  const client = new Client({ name: 'acp-28-http-smoke', version: '0.0.1' })
+  const transport = new StreamableHTTPClientTransport(new URL(baseUrl), {
+    requestInit: {
+      headers: {
+        Authorization: authorization,
+      },
+    },
+  })
+  return { client, transport }
+}
+
 describe('compiled MCP Streamable HTTP client smoke', () => {
   let child: ChildProcess
   let dataDir = ''
@@ -85,6 +114,10 @@ describe('compiled MCP Streamable HTTP client smoke', () => {
         MCP_HTTP_PORT: String(port),
         DATA_PATH: join(dataDir, 'commerce.json'),
         STORE_BACKEND: 'json',
+        // Explicit demo gate so smoke credentials match REST (customer-token / merchant-token).
+        ALLOW_DEMO_TOKENS: '1',
+        JWT_SECRET: 'acp-28-mcp-http-smoke-jwt',
+        NODE_ENV: 'test',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -108,17 +141,73 @@ describe('compiled MCP Streamable HTTP client smoke', () => {
     if (dataDir) await rm(dataDir, { recursive: true, force: true })
   })
 
-  it('initialize → tools/list ≥16 → inventory/search → cart → place_order', async () => {
-    const client = new Client({ name: 'acp-23-http-smoke', version: '0.0.1' })
-    const transport = new StreamableHTTPClientTransport(new URL(baseUrl), {
-      // Demo of auth header plumbing; server accepts and ignores in this transport.
-      requestInit: {
-        headers: {
-          Authorization: 'Bearer smoke-token',
-          'X-API-Key': 'smoke-key',
-        },
+  it('rejects tools/list with no Authorization (401)', async () => {
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/list',
+        params: {},
+      }),
+    })
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as {
+      error?: { message?: string; data?: { code?: string } }
+    }
+    expect(body.error?.data?.code).toBe('UNAUTHORIZED')
+    expect(body.error?.message).toBeTruthy()
+  }, 30_000)
+
+  it('rejects customer upsert_product (FORBIDDEN)', async () => {
+    const { client, transport } = mcpClient(baseUrl, 'Bearer customer-token')
+    await client.connect(transport)
+
+    const result = await client.callTool({
+      name: 'upsert_product',
+      arguments: {
+        sku: 'CUST-DENIED-1',
+        name: 'Should Fail',
+        priceCents: 100,
+        idempotencyKey: 'http-smoke-customer-upsert-1',
       },
     })
+    const err = toolErrorBody(result)
+    expect(err.code).toBe('FORBIDDEN')
+
+    await client.close()
+  }, 30_000)
+
+  it('allows merchant upsert_product', async () => {
+    const { client, transport } = mcpClient(baseUrl, 'Bearer merchant-token')
+    await client.connect(transport)
+
+    const product = JSON.parse(
+      toolText(
+        await client.callTool({
+          name: 'upsert_product',
+          arguments: {
+            sku: 'MERCH-OK-1',
+            name: 'Merchant Allowed Widget',
+            priceCents: 900,
+            idempotencyKey: 'http-smoke-merchant-upsert-1',
+          },
+        }),
+      ),
+    ) as { id: string; name: string; sku: string }
+    expect(product.sku).toBe('MERCH-OK-1')
+    expect(product.name).toBe('Merchant Allowed Widget')
+    expect(product.id).toBeTruthy()
+
+    await client.close()
+  }, 30_000)
+
+  it('initialize → tools/list ≥16 → inventory/search → cart → place_order', async () => {
+    const { client, transport } = mcpClient(baseUrl, 'Bearer merchant-token')
 
     await client.connect(transport)
 
