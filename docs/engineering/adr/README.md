@@ -11,7 +11,7 @@ Lightweight ADRs for Agent Commerce. Each record captures **Context**, **Decisio
 | [0003](./0003-shared-domain-service-rest-mcp.md) | Shared domain service for REST + MCP | Accepted |
 | [0004](./0004-fail-closed-auth-jwt-api-key.md) | Fail-closed auth (JWT + API Key) | Accepted |
 | [0005](./0005-integer-cents.md) | Integer cents for money | Accepted |
-| [0006](./0006-e2e-isomorphic-with-prod.md) | E2E isomorphic with production store | Accepted (SQLite default e2e **尚未实现** on `main`; tracked [#677](https://github.com/adlternative/agent-commerce/issues/677) / [#679](https://github.com/adlternative/agent-commerce/pull/679)) |
+| [0006](./0006-e2e-isomorphic-with-prod.md) | E2E isomorphic with production store | Accepted (landed [#679](https://github.com/adlternative/agent-commerce/pull/679) / [#677](https://github.com/adlternative/agent-commerce/issues/677); `playwright.config.ts` defaults to SQLite) |
 
 ## Template
 
