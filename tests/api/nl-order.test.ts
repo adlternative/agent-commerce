@@ -12,11 +12,27 @@ describe('formatCents', () => {
 })
 
 describe('parseNlIntent', () => {
-  it('extracts quantity, query, and promo', () => {
+  it('extracts quantity, query, and promo from the panel default phrasing', () => {
     const intent = parseNlIntent('帮我买两件 Agent Mug，用掉这张券 SAVE200')
     expect(intent.quantity).toBe(2)
     expect(intent.promo).toBe('SAVE200')
-    expect(intent.query.toLowerCase()).toContain('agent mug')
+    expect(intent.query.toLowerCase()).toBe('agent mug')
+  })
+
+  it.each([
+    ['买两件 Agent Mug', 2, 'agent mug', undefined],
+    ['两件 Agent Mug', 2, 'agent mug', undefined],
+    ['Buy 2 Agent Mug', 2, 'agent mug', undefined],
+    ['Agent Mug', 1, 'agent mug', undefined],
+    ['两件Mug用券SAVE200', 2, 'mug', 'SAVE200'],
+  ] as const)('parses %j → qty=%i query=%j promo=%j', (input, qty, query, promo) => {
+    const intent = parseNlIntent(input)
+    expect(intent.quantity).toBe(qty)
+    expect(intent.query.toLowerCase()).toBe(query)
+    expect(intent.promo).toBe(promo)
+    expect(intent.query).not.toMatch(/[一二两三四五六七八九十]/)
+    expect(intent.query).not.toMatch(/\d+\s*(?:件|个|x|×)/i)
+    expect(intent.query).not.toMatch(/(?:件|个|盒|份)/)
   })
 })
 
@@ -69,10 +85,23 @@ describe('runNlOrder', () => {
     const result = await runNlOrder(api, '帮我买两件 Agent Mug，用掉这张券 SAVE200')
     expect(result.error).toBeUndefined()
     expect(result.order?.status).toBe('paid')
-    expect(api.agent.listProducts).toHaveBeenCalled()
+    expect(api.agent.listProducts).toHaveBeenCalledWith('Agent Mug')
     expect(api.agent.addItem).toHaveBeenCalledWith('c1', 'p1', 2)
     expect(api.agent.applyPromotion).toHaveBeenCalledWith('c1', 'SAVE200')
     expect(api.agent.placeOrder).toHaveBeenCalled()
     expect(api.agent.payOrder).toHaveBeenCalledWith('o1')
+  })
+
+  it('returns parse-failure message when quantity/product name cannot be understood', async () => {
+    const api = {
+      agent: {
+        listProducts: vi.fn(),
+      },
+    } as unknown as CommerceApi
+
+    const result = await runNlOrder(api, '买两件')
+    expect(result.error).toBe('没听懂数量或商品名')
+    expect(result.error).not.toMatch(/未找到商品/)
+    expect(api.agent.listProducts).not.toHaveBeenCalled()
   })
 })
