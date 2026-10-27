@@ -25,6 +25,8 @@ jobs:
       - name: MCP Streamable HTTP client smoke
         run: npm run test:mcp:http
       - run: npm run openapi:check
+      - run: npm run docs:check
+      - run: npm run docs:build
       - run: npm run build
 
   docker:

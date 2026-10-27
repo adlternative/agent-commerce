@@ -37,12 +37,19 @@ Demo Bearer tokens (`customer-token` / `merchant-token` / `agent-token` / `agent
 
 ## Docs
 
+Static site (VitePress): `npm run docs:dev` → `http://localhost:5173/agent-commerce/` · `npm run docs:build`
+
 | Doc | What |
 |-----|------|
+| [docs/index.md](docs/index.md) | Getting Started (docs site home) |
 | [docs/product/POSITIONING.md](docs/product/POSITIONING.md) | What it is / who / what it is **not** |
 | [docs/product/WHY-OPEN.md](docs/product/WHY-OPEN.md) | Open vs closed SaaS — code-cited |
 | [docs/product/COMPARISON.md](docs/product/COMPARISON.md) | vs closed SaaS vs greenfield (+ honest gaps) |
 | [docs/product/INTEGRATION.md](docs/product/INTEGRATION.md) | REST · MCP · merchant webhooks (runnable) |
+| [docs/reference/api.generated.md](docs/reference/api.generated.md) | API ref (**from** `openapi.json`) |
+| [docs/reference/mcp-tools.generated.md](docs/reference/mcp-tools.generated.md) | MCP tools (**from** code) |
+| [docs/engineering/adr/README.md](docs/engineering/adr/README.md) | ADRs |
+| [docs/deploy.md](docs/deploy.md) | GitHub Pages / Cloudflare Pages (free) |
 | [docs/API.md](docs/API.md) · [docs/openapi.json](docs/openapi.json) | HTTP contract |
 | [docs/MCP.md](docs/MCP.md) | Tools / resources / prompts |
 | [docs/AI-INTEGRATION.md](docs/AI-INTEGRATION.md) | Discovery, pagination, audit, rate limit |
@@ -56,5 +63,8 @@ Demo Bearer tokens (`customer-token` / `merchant-token` / `agent-token` / `agent
 | `npm run typecheck` / `build` / `build:server` | Frontend + `dist-server/` |
 | `npm run openapi:check` | OpenAPI drift gate |
 | `npm run test:mcp:http` | Streamable HTTP real-client smoke |
+| `npm run docs:gen` | Regenerate `docs/reference/*.generated.md` |
+| `npm run docs:dev` / `docs:build` | VitePress preview / static build |
+| `npm run docs:check` | Assert generated refs match OpenAPI + MCP code |
 
-Stack: TypeScript strict · Node 22 · zod · Vitest · React 18 · Vite · `@modelcontextprotocol/sdk` · `node:sqlite`.
+Stack: TypeScript strict · Node 22 · zod · Vitest · React 18 · Vite · VitePress · `@modelcontextprotocol/sdk` · `node:sqlite`.
