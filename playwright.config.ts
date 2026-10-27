@@ -36,7 +36,18 @@ export default defineConfig({
     trace: 'on-first-retry',
     ...devices['Desktop Chrome'],
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: [/json-legacy-store\.spec\.ts/, /mobile-.*\.spec\.ts/],
+    },
+    {
+      name: 'mobile-chrome',
+      use: { ...devices['Pixel 5'] },
+      testMatch: /mobile-.*\.spec\.ts/,
+    },
+  ],
   webServer: [
     {
       command: 'npm run server',

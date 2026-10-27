@@ -35,7 +35,8 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-33 | Product positioning docs + README | Done | #686 @ `b0c5e01`; `docs/product/*` + README rewrite |
 | ACP-34 | Engineering norms + ADRs | Done | #687 @ `aa354bf`; CONTRIBUTING, SECURITY, adr/0001–0006 |
 | ACP-35 | Previewable docs site (VitePress) | Done | #689 @ `c3855eb`; `docs:dev`/`docs:build`; OpenAPI+MCP codegen; Pages/CF deploy; ADR-0007 |
-| ACP-36 | Self-hosted deployment + infra docs | In progress | `docs/architecture/DEPLOYMENT.md` + `INFRA.md`; SQLite bounds, gateway, /metrics→Prom/Grafana, backup, free-tier cost table |
+| ACP-36 | Self-hosted deployment + infra docs | Done | #690 @ `895d2d1`; `docs/architecture/{DEPLOYMENT,INFRA}.md` |
+| ACP-37 | Mobile PWA ADR + installable MVP | Done | #691; ADR-0008 PWA-first; manifest+SW+icons+offline; mobile Playwright order e2e |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.

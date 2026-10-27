@@ -24,3 +24,11 @@ createRoot(document.getElementById('root')!).render(
     <Root />
   </StrictMode>,
 )
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Installability is best-effort in unsupported contexts (e.g. non-secure origins).
+    })
+  })
+}

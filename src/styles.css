@@ -261,11 +261,56 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  .page {
+    padding: 1rem 1rem 3.5rem;
+  }
+
+  .top {
+    flex-wrap: wrap;
+  }
+
+  nav button,
+  nav a,
+  .ghost,
+  .search button,
+  .promo-row button,
+  .primary {
+    min-height: 44px;
+    padding: 0.65rem 0.95rem;
+  }
+
   .product-row {
     grid-template-columns: 1fr auto;
+    min-height: 48px;
+    align-items: center;
   }
+
   .psku {
     grid-column: 1 / -1;
+  }
+
+  .hero {
+    min-height: min(58vh, 420px);
+    padding: 1.5rem 0 1.25rem;
+  }
+
+  .search {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search input {
+    width: 100%;
+  }
+
+  .merchant-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .row-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 

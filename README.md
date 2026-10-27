@@ -54,6 +54,9 @@ Static site (VitePress): `npm run docs:dev` → `http://localhost:5173/agent-com
 | [docs/MCP.md](docs/MCP.md) | Tools / resources / prompts |
 | [docs/AI-INTEGRATION.md](docs/AI-INTEGRATION.md) | Discovery, pagination, audit, rate limit |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layering & storage |
+| [docs/engineering/adr/0008-pwa-first-mobile.md](docs/engineering/adr/0008-pwa-first-mobile.md) | PWA-first mobile (defer Expo/RN); push/native **尚未实现** |
+
+Installable PWA: `public/manifest.webmanifest` + `public/sw.js` + icons; offline shell at `/offline.html`. Customer UI remains the Vite React SPA (Add to Home Screen; no app store).
 
 ## Develop
 
