@@ -20,7 +20,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-17 | NL order parse qty/query (#652) | Done | #657 @ `d585882`; parseNlIntent CN/EN qty + clean query; 31 files / 159 unit + 3 e2e |
 | ACP-18 | README test/E2E docs | In progress | [#653](https://github.com/adlternative/agent-commerce/issues/653); scripts table + playwright install + `E2E_API_PORT` |
 | ACP-20 | Agent product list `available` | In progress | [#655](https://github.com/adlternative/agent-commerce/issues/655); batch stock + OpenAPI/`available` + 409 on OOS add |
-| ACP-16 | Product list always `{items,nextCursor}` (#651) | In progress | Unify customer/merchant/agent product GET; OpenAPI limit/cursor; tests no-limit / limit / cursor |
+| ACP-16 | Product list always `{items,nextCursor}` (#651) | Done | #663 @ `5c59dca`; always page envelope + OpenAPI limit/cursor; 33 files / 176 unit + 3 e2e |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.
