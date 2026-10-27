@@ -1342,7 +1342,7 @@ _optional_
 
 ### GET `/api/merchant/products`
 
-**List products (merchant)**
+**List products (merchant); each item includes onHand, reserved, available**
 
 - **tags:** `merchant`
 
