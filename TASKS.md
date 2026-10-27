@@ -34,7 +34,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-32 | Dockerfile without apt/tini (#682) | Done | #683 @ `0ad9305`; no runtime apt; compose `init: true` + node fetch healthcheck |
 | ACP-33 | Product positioning docs + README | Done | #686 @ `b0c5e01`; `docs/product/*` + README rewrite |
 | ACP-34 | Engineering norms + ADRs | Done | #687 @ `aa354bf`; CONTRIBUTING, SECURITY, adr/0001–0006 |
-| ACP-35 | Previewable docs site (VitePress) | In progress | `docs:dev`/`docs:build`; OpenAPI+MCP codegen; Pages/CF deploy; ADR-0007 — [#689](https://github.com/adlternative/agent-commerce/pull/689) |
+| ACP-35 | Previewable docs site (VitePress) | Done | #689 @ `c3855eb`; VitePress docs site; OpenAPI+MCP codegen; Pages/CF deploy; ADR-0007 |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.
