@@ -67,7 +67,7 @@ Transport choice:
 | `place_order` | Reserve stock → `created` |
 | `get_order` | Order status |
 | `cancel_order` | Cancel + release/restock |
-| `request_return` | Refund paid/shipped/delivered |
+| `request_return` | Request return (merchant approves to refund) |
 | `upsert_product` | Merchant create/update |
 | `adjust_stock` | Merchant stock delta |
 | `list_orders` | Filter by customer/status |

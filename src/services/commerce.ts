@@ -54,8 +54,11 @@ import {
   type PaymentWebhookEvent,
 } from '../domain/payment.js'
 import {
+  approveReturn as domainApproveReturn,
   completeReturnRefund,
   createReturnRequest,
+  rejectReturn as domainRejectReturn,
+  type ReturnLine,
   type ReturnRequest,
 } from '../domain/return.js'
 
@@ -836,16 +839,88 @@ export class CommerceService {
     })
   }
 
+  async listReturns(filter?: { status?: ReturnRequest['status']; orderId?: string }): Promise<ReturnRequest[]> {
+    const db = await this.repo.read()
+    return db.returns.filter((r) => {
+      if (filter?.status && r.status !== filter.status) return false
+      if (filter?.orderId && r.orderId !== filter.orderId) return false
+      return true
+    })
+  }
+
+  async getReturn(returnId: string): Promise<ReturnRequest> {
+    const db = await this.repo.read()
+    const ret = db.returns.find((r) => r.id === returnId)
+    if (!ret) throw new DomainError('RETURN_NOT_FOUND', `return ${returnId} not found`)
+    return ret
+  }
+
+  /**
+   * Customer/agent requests a return. Leaves status=`requested` until merchant approve/reject.
+   * Optional `lines` select quantities to return; omit for full-order return.
+   */
   async requestReturn(
     orderId: string,
     reason: string,
     idempotencyKey: string,
-  ): Promise<{ return: ReturnRequest; order: Order; payment: Payment }> {
+    lines?: ReturnLine[],
+  ): Promise<{ return: ReturnRequest; order: Order }> {
     const key = requireIdempotencyKey(idempotencyKey)
-    const requestHash = hashRequest({ orderId, reason })
+    const requestHash = hashRequest({ orderId, reason, lines: lines ?? null })
 
     return this.repo.transaction((db) => {
       const scope = 'request_return'
+      const existing = db.idempotency.find((r) => r.key === key && r.scope === scope)
+      const resolved = resolveIdempotency(existing, key, scope, requestHash)
+      if (resolved.replay) {
+        const ret = db.returns.find((r) => r.id === resolved.resourceId)!
+        const order = db.orders.find((o) => o.id === ret.orderId)!
+        return { return: ret, order }
+      }
+
+      const orderIdx = db.orders.findIndex((o) => o.id === orderId)
+      if (orderIdx < 0) throw new DomainError('ORDER_NOT_FOUND', `order ${orderId} not found`)
+      const order = db.orders[orderIdx]!
+      const payment = db.payments.find((p) => p.orderId === order.id && p.status === 'captured')
+      if (!payment) {
+        throw new DomainError('PAYMENT_NOT_FOUND', 'no captured payment for order')
+      }
+
+      const ret = createReturnRequest({
+        id: newId('ret'),
+        order,
+        reason,
+        lines,
+        idempotencyKey: key,
+        existingReturns: db.returns,
+      })
+
+      db.returns.push(ret)
+      db.idempotency.push(
+        makeIdempotencyRecord({
+          key,
+          scope,
+          resourceId: ret.id,
+          requestHash,
+        }),
+      )
+      return { return: ret, order }
+    })
+  }
+
+  /**
+   * Merchant approves a requested return: refunds by line amount, restocks lines,
+   * sets order to `refunded` (full) or `partially_refunded`.
+   */
+  async approveReturn(
+    returnId: string,
+    idempotencyKey: string,
+  ): Promise<{ return: ReturnRequest; order: Order; payment: Payment }> {
+    const key = requireIdempotencyKey(idempotencyKey)
+    const requestHash = hashRequest({ returnId, action: 'approve' })
+
+    return this.repo.transaction((db) => {
+      const scope = 'approve_return'
       const existing = db.idempotency.find((r) => r.key === key && r.scope === scope)
       const resolved = resolveIdempotency(existing, key, scope, requestHash)
       if (resolved.replay) {
@@ -855,34 +930,30 @@ export class CommerceService {
         return { return: ret, order, payment }
       }
 
-      const orderIdx = db.orders.findIndex((o) => o.id === orderId)
-      if (orderIdx < 0) throw new DomainError('ORDER_NOT_FOUND', `order ${orderId} not found`)
-      let order = db.orders[orderIdx]!
+      const retIdx = db.returns.findIndex((r) => r.id === returnId)
+      if (retIdx < 0) throw new DomainError('RETURN_NOT_FOUND', `return ${returnId} not found`)
+      let ret = db.returns[retIdx]!
+      ret = domainApproveReturn(ret)
+
+      const orderIdx = db.orders.findIndex((o) => o.id === ret.orderId)
+      if (orderIdx < 0) throw new DomainError('ORDER_NOT_FOUND', `order ${ret.orderId} not found`)
+      const order = db.orders[orderIdx]!
       const payment = db.payments.find((p) => p.orderId === order.id && p.status === 'captured')
       if (!payment) {
         throw new DomainError('PAYMENT_NOT_FOUND', 'no captured payment for order')
       }
 
-      let ret = createReturnRequest({
-        id: newId('ret'),
-        order,
-        reason,
-        idempotencyKey: key,
-      })
-      // Auto-approve + refund for the simplified commerce core.
-      ret = { ...ret, status: 'approved', updatedAt: new Date().toISOString() }
-      const completed = completeReturnRefund(ret, order, payment)
+      const completed = completeReturnRefund(ret, order, payment, db.returns)
 
-      // Restock.
-      for (const line of order.lines) {
+      for (const line of completed.return.lines) {
         const stock = findStock(db.stock, line.productId)
         upsertStock(db.stock, adjustOnHand(stock, line.quantity))
       }
 
+      db.returns[retIdx] = completed.return
       db.orders[orderIdx] = completed.order
       const payIdx = db.payments.findIndex((p) => p.id === payment.id)
       db.payments[payIdx] = completed.payment
-      db.returns.push(completed.return)
       db.idempotency.push(
         makeIdempotencyRecord({
           key,
@@ -892,6 +963,34 @@ export class CommerceService {
         }),
       )
       return completed
+    })
+  }
+
+  async rejectReturn(returnId: string, idempotencyKey: string): Promise<ReturnRequest> {
+    const key = requireIdempotencyKey(idempotencyKey)
+    const requestHash = hashRequest({ returnId, action: 'reject' })
+
+    return this.repo.transaction((db) => {
+      const scope = 'reject_return'
+      const existing = db.idempotency.find((r) => r.key === key && r.scope === scope)
+      const resolved = resolveIdempotency(existing, key, scope, requestHash)
+      if (resolved.replay) {
+        return db.returns.find((r) => r.id === resolved.resourceId)!
+      }
+
+      const retIdx = db.returns.findIndex((r) => r.id === returnId)
+      if (retIdx < 0) throw new DomainError('RETURN_NOT_FOUND', `return ${returnId} not found`)
+      const next = domainRejectReturn(db.returns[retIdx]!)
+      db.returns[retIdx] = next
+      db.idempotency.push(
+        makeIdempotencyRecord({
+          key,
+          scope,
+          resourceId: next.id,
+          requestHash,
+        }),
+      )
+      return next
     })
   }
 

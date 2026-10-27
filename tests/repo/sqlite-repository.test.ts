@@ -28,7 +28,7 @@ async function tmpSqlite(): Promise<{ dir: string; path: string; repo: SqliteRep
 describe('SqliteRepository', () => {
   it('applies schema migrations on empty database', async () => {
     const { repo } = await tmpSqlite()
-    expect(repo.migrationVersions()).toEqual([1])
+    expect(repo.migrationVersions()).toEqual([1, 2])
     expect(repo.isEmpty()).toBe(true)
     const db = await repo.read()
     expect(db).toEqual(emptyDb())

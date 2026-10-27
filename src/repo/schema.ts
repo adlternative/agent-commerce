@@ -109,4 +109,10 @@ CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders (customer_id);
 CREATE INDEX IF NOT EXISTS idx_payments_order ON payments (order_id);
 `,
   },
+  {
+    version: 2,
+    sql: `
+ALTER TABLE returns ADD COLUMN lines_json TEXT NOT NULL DEFAULT '[]';
+`,
+  },
 ]

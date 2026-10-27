@@ -9,6 +9,7 @@ export const OrderStatusSchema = z.enum([
   'shipped',
   'delivered',
   'cancelled',
+  'partially_refunded',
   'refunded',
 ])
 
@@ -45,10 +46,11 @@ export type Order = z.infer<typeof OrderSchema>
 /** Allowed transitions for the order state machine. */
 const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   created: ['paid', 'cancelled'],
-  paid: ['shipped', 'cancelled', 'refunded'],
-  shipped: ['delivered', 'refunded'],
-  delivered: ['refunded'],
+  paid: ['shipped', 'cancelled', 'refunded', 'partially_refunded'],
+  shipped: ['delivered', 'refunded', 'partially_refunded'],
+  delivered: ['refunded', 'partially_refunded'],
   cancelled: [],
+  partially_refunded: ['refunded'],
   refunded: [],
 }
 

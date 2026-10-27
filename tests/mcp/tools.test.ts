@@ -164,6 +164,13 @@ describe('MCP tool handlers', () => {
       reason: 'damaged',
       idempotencyKey: 'ret-1',
     })
-    expect(JSON.parse(ret.content[0]!.text).order.status).toBe('refunded')
+    const body = JSON.parse(ret.content[0]!.text) as {
+      return: { id: string; status: string }
+      order: { status: string }
+    }
+    expect(body.return.status).toBe('requested')
+    expect(body.order.status).toBe('paid')
+    const approved = await commerce.approveReturn(body.return.id, 'ret-approve')
+    expect(approved.order.status).toBe('refunded')
   })
 })

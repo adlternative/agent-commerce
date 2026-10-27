@@ -1,4 +1,4 @@
-import type { Cart, CartQuote, Order, Product, Stock } from './types.js'
+import type { Cart, CartQuote, Order, Product, ReturnLine, ReturnRequest, Stock } from './types.js'
 
 export type ApiConfig = {
   baseUrl: string
@@ -93,6 +93,15 @@ export function createApi(config: ApiConfig) {
         idempotencyKey: newKey('pay'),
       }),
     getOrder: (orderId: string) => request<Order>('GET', `/api/customer/orders/${orderId}`),
+    requestReturn: (orderId: string, reason: string, lines: ReturnLine[]) =>
+      request<{ return: ReturnRequest; order: Order }>(
+        'POST',
+        `/api/customer/orders/${orderId}/returns`,
+        {
+          body: { reason, lines },
+          idempotencyKey: newKey('ret'),
+        },
+      ),
     /** Agent surface — same commerce service, used by the NL panel. */
     agent: {
       listProducts: async (q?: string) => {

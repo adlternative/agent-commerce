@@ -7,8 +7,13 @@ Agent Commerce is an AI-native commerce stack: human customers, merchants, and A
 1. **Domain** (`src/domain/*`) — zod schemas, inventory math, cart/promotion quoting, order state machine, payment/return. Amounts are integer **cents**. Errors are `DomainError` → `{ code, message, hint?, retryable }`.
 2. **Repository** (`src/repo/*`) — `CommerceRepository` port with SQLite (default), JSON-file, and in-memory adapters.
 3. **Service** (`src/services/commerce.ts`) — use-cases; every write takes an **Idempotency-Key**.
+<<<<<<< HEAD
 4. **HTTP** (`src/server/*`) — `node:http` router, API Key + opaque Bearer + HS256 JWT auth, three-role RBAC with agent scopes (`agent:customer` / `agent:merchant`), OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`; optional `STATIC_DIR` serves the Vite `dist/` SPA.
 5. **MCP** (`src/mcp/*`) — 17 tools + resources (templates + completion) + polished prompts + domain→MCP error mapping + sampling (`recommend_products`) on the same `CommerceService`.
+=======
+4. **HTTP** (`src/server/*`) — `node:http` router, API Key + opaque Bearer + HS256 JWT auth, three-role RBAC with agent scopes (`agent:customer` / `agent:merchant`), OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`.
+5. **MCP** (`src/mcp/*`) — tools + resources + prompts on the same `CommerceService`.
+>>>>>>> 024e5bb (feat(acp-22): returns/refund UI with merchant approve and E2E)
 
 Backend runtime is **compiled** (`npm run build:server` → `dist-server/`) so NodeNext-style `.js` import specifiers resolve to real files. Do not run `src/**/*.ts` with `--experimental-strip-types` for server/MCP entrypoints.
 6. **AI adapter** (`src/ai/*`) — well-known discovery, cursor pagination, audit log, token-bucket rate limit.
@@ -41,16 +46,36 @@ npm run migrate -- --empty-only --sqlite data/commerce.sqlite
 ```
 created → paid → shipped → delivered (receive)
    │        │        │         │
-   └─ cancelled      └─────────┴─→ refunded
-            └─ cancelled / refunded
+   │        ├────────┼─────────┼─→ partially_refunded ──→ refunded
+   │        └────────┴─────────┴─→ refunded
+   └─ cancelled
 ```
 
 - `place_order` **reserves** stock with a **15-minute TTL** (`expiresAt`)
 - `pay_order` or webhook `payment.captured` **commits** (deducts)
 - webhook `payment.failed` records a failed payment; order stays `created`
 - unpaid holds past `expiresAt` are **auto-released** via `releaseExpiredReservations` (also cancels the order)
-- closed loop: **ship → receive (delivered) → refund** (return from paid/shipped/delivered)
-- cancel-before-pay **releases**; cancel-after-pay / return **restocks**
+- closed loop: **ship → receive (delivered) → return request → merchant approve → refund**
+- cancel-before-pay **releases**; cancel-after-pay / approved return **restocks**
+
+## Return / refund state machine
+
+```
+ReturnRequest:
+  requested ──approve──→ approved ──(service)──→ refunded
+      │
+      └──reject──→ rejected (terminal)
+
+Order on approve:
+  - full line coverage or amountCents exhausts remaining total → order.refunded (+ payment.refunded)
+  - otherwise → order.partially_refunded (payment stays captured; further returns allowed for remaining qty)
+
+Refund amounts are integer cents: never negative, never exceed order.totalCents (minus prior active returns).
+Customer selects lines + reason (`POST …/returns`); merchant lists/approves/rejects (`GET/POST /api/merchant/returns…`).
+Duplicate open returns for the same order are rejected (`DUPLICATE_RETURN`).
+Qty above ordered (including prior non-rejected returns) → `RETURN_QTY_EXCEEDS_ORDERED`.
+Already fully `refunded` orders cannot return again (`ORDER_NOT_RETURNABLE`).
+```
 
 ## Concurrency & AI safety
 

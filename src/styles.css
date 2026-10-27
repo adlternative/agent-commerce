@@ -334,3 +334,45 @@ nav a {
   color: color-mix(in srgb, var(--ink) 55%, transparent);
   font-size: 0.9rem;
 }
+
+.return-panel {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.return-panel h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--sea-deep);
+}
+
+.return-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.return-lines label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.return-lines input[type='number'] {
+  width: 4.5rem;
+}
+
+.return-panel > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}

@@ -170,6 +170,7 @@ export function registerRoutes(
       ctx.params.id!,
       body.reason,
       requireKey(ctx.idempotencyKey),
+      body.lines,
     )
   })
 
@@ -231,6 +232,7 @@ export function registerRoutes(
       | 'shipped'
       | 'delivered'
       | 'cancelled'
+      | 'partially_refunded'
       | 'refunded'
       | null
     const orders = await commerce.listOrders({
@@ -244,6 +246,27 @@ export function registerRoutes(
       })
     }
     return orders
+  })
+
+  router.on('GET', '/api/merchant/returns', ['merchant', 'agent:merchant'], async (ctx) => {
+    const status = ctx.query.get('status') as
+      | 'requested'
+      | 'approved'
+      | 'rejected'
+      | 'refunded'
+      | null
+    return commerce.listReturns({
+      status: status ?? undefined,
+      orderId: ctx.query.get('orderId') ?? undefined,
+    })
+  })
+
+  router.on('POST', '/api/merchant/returns/:id/approve', ['merchant', 'agent:merchant'], async (ctx) => {
+    return commerce.approveReturn(ctx.params.id!, requireKey(ctx.idempotencyKey))
+  })
+
+  router.on('POST', '/api/merchant/returns/:id/reject', ['merchant', 'agent:merchant'], async (ctx) => {
+    return commerce.rejectReturn(ctx.params.id!, requireKey(ctx.idempotencyKey))
   })
 
   router.on('POST', '/api/merchant/orders/:id/ship', ['merchant', 'agent:merchant'], async (ctx) => {
@@ -383,6 +406,7 @@ export function registerRoutes(
       ctx.params.id!,
       body.reason,
       requireKey(ctx.idempotencyKey),
+      body.lines,
     )
   })
 

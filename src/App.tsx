@@ -25,8 +25,15 @@ export default function App() {
   const [nlText, setNlText] = useState('帮我买两件 Agent Mug，用掉这张券 SAVE200')
   const [nlSteps, setNlSteps] = useState<NlStep[]>([])
   const [promoCode, setPromoCode] = useState('SAVE200')
+  const [returnReason, setReturnReason] = useState('不想要了')
+  const [returnQty, setReturnQty] = useState<Record<string, number>>({})
+  const [returnSubmitted, setReturnSubmitted] = useState<string | null>(null)
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
+  const canRequestReturn =
+    order != null &&
+    ['paid', 'shipped', 'delivered', 'partially_refunded'].includes(order.status) &&
+    !returnSubmitted
 
   async function refreshProducts(q?: string) {
     setError(null)
@@ -99,6 +106,8 @@ export default function App() {
       const placed = await api.placeOrder(cart.id)
       const paid = await api.payOrder(placed.id)
       setOrder(paid.order)
+      setReturnSubmitted(null)
+      setReturnQty(Object.fromEntries(paid.order.lines.map((l) => [l.productId, l.quantity])))
       setCart(null)
       setQuote(null)
       setView('order')
@@ -119,8 +128,37 @@ export default function App() {
       if (result.error) setError(result.error)
       if (result.order) {
         setOrder(result.order)
+        setReturnSubmitted(null)
+        setReturnQty(
+          Object.fromEntries(result.order.lines.map((l) => [l.productId, l.quantity])),
+        )
         setView('order')
       }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitReturn() {
+    if (!order || !returnReason.trim()) return
+    const lines = order.lines
+      .map((l) => ({
+        productId: l.productId,
+        quantity: returnQty[l.productId] ?? 0,
+      }))
+      .filter((l) => l.quantity > 0)
+    if (lines.length === 0) {
+      setError('请选择退货数量')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await api.requestReturn(order.id, returnReason.trim(), lines)
+      setReturnSubmitted(result.return.id)
+      setOrder(result.order)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '申请退货失败')
     } finally {
       setBusy(false)
     }
@@ -303,10 +341,63 @@ export default function App() {
           <ul>
             {order.lines.map((l) => (
               <li key={l.productId}>
-                {l.productId} × {l.quantity}
+                {productMap.get(l.productId)?.name ?? l.productId} × {l.quantity}
               </li>
             ))}
           </ul>
+
+          {canRequestReturn ? (
+            <div className="return-panel" data-testid="return-panel">
+              <h3>申请退货</h3>
+              <ul className="return-lines">
+                {order.lines.map((l) => (
+                  <li key={l.productId}>
+                    <label>
+                      <span>{productMap.get(l.productId)?.name ?? l.productId}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={l.quantity}
+                        value={returnQty[l.productId] ?? 0}
+                        onChange={(e) =>
+                          setReturnQty((prev) => ({
+                            ...prev,
+                            [l.productId]: Math.max(
+                              0,
+                              Math.min(l.quantity, Number(e.target.value) || 0),
+                            ),
+                          }))
+                        }
+                        aria-label={`退货数量 ${l.productId}`}
+                      />
+                      <span className="muted">/ {l.quantity}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <label>
+                退货原因
+                <input
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  aria-label="退货原因"
+                />
+              </label>
+              <button
+                type="button"
+                className="primary"
+                disabled={busy}
+                onClick={() => void submitReturn()}
+              >
+                申请退货
+              </button>
+            </div>
+          ) : null}
+          {returnSubmitted ? (
+            <p className="muted" data-testid="return-requested">
+              退货已申请（{returnSubmitted}），等待商家审核
+            </p>
+          ) : null}
         </section>
       ) : null}
     </div>

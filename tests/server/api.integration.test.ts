@@ -336,7 +336,20 @@ describe('HTTP API integration', () => {
       body: { reason: 'changed mind' },
     })
     expect(ret.status).toBe(200)
-    expect((ret.json.order as Json).status).toBe('refunded')
+    expect((ret.json.return as Json).status).toBe('requested')
+    expect((ret.json.order as Json).status).toBe('delivered')
+
+    const approved = await api(
+      baseUrl,
+      'POST',
+      `/api/merchant/returns/${(ret.json.return as Json).id}/approve`,
+      {
+        token: 'merchant-token',
+        idempotencyKey: 'webhook-return-approve',
+      },
+    )
+    expect(approved.status).toBe(200)
+    expect((approved.json.order as Json).status).toBe('refunded')
   })
 
   it('exposes release-expired reservations endpoint', async () => {

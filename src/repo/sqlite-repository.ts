@@ -357,18 +357,27 @@ export class SqliteRepository implements CommerceRepository {
     )
 
     const returnRows = this.db.prepare('SELECT * FROM returns').all() as Array<Record<string, unknown>>
-    db.returns = returnRows.map(
-      (r): ReturnRequest => ({
+    db.returns = returnRows.map((r): ReturnRequest => {
+      const rawLines = r.lines_json != null ? String(r.lines_json) : '[]'
+      let lines: ReturnRequest['lines'] = []
+      try {
+        const parsed = JSON.parse(rawLines) as unknown
+        if (Array.isArray(parsed)) lines = parsed as ReturnRequest['lines']
+      } catch {
+        lines = []
+      }
+      return {
         id: String(r.id),
         orderId: String(r.order_id),
         reason: String(r.reason),
+        lines,
         amountCents: Number(r.amount_cents),
         status: r.status as ReturnRequest['status'],
         idempotencyKey: String(r.idempotency_key),
         createdAt: String(r.created_at),
         updatedAt: String(r.updated_at),
-      }),
-    )
+      }
+    })
 
     const idempRows = this.db
       .prepare('SELECT * FROM idempotency')
@@ -504,8 +513,8 @@ export class SqliteRepository implements CommerceRepository {
 
     const insertReturn = this.db.prepare(`
       INSERT INTO returns (
-        id, order_id, reason, amount_cents, status, idempotency_key, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        id, order_id, reason, amount_cents, status, idempotency_key, created_at, updated_at, lines_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     for (const r of data.returns) {
       insertReturn.run(
@@ -517,6 +526,7 @@ export class SqliteRepository implements CommerceRepository {
         r.idempotencyKey,
         r.createdAt,
         r.updatedAt,
+        JSON.stringify(r.lines ?? []),
       )
     }
 

@@ -585,13 +585,60 @@ export function buildOpenApi() {
               in: 'query',
               schema: {
                 type: 'string',
-                enum: ['created', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'],
+                enum: [
+                  'created',
+                  'paid',
+                  'shipped',
+                  'delivered',
+                  'cancelled',
+                  'partially_refunded',
+                  'refunded',
+                ],
               },
             },
             { name: 'cursor', in: 'query', schema: { type: 'string' } },
             { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1 } },
           ],
           responses: ok(orderListSchema),
+        },
+      }),
+      '/api/merchant/returns': pathItem({
+        get: {
+          summary: 'List return requests',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [
+            {
+              name: 'status',
+              in: 'query',
+              schema: {
+                type: 'string',
+                enum: ['requested', 'approved', 'rejected', 'refunded'],
+              },
+            },
+            { name: 'orderId', in: 'query', schema: { type: 'string' } },
+          ],
+          responses: ok({ type: 'array', items: returnRef }),
+        },
+      }),
+      '/api/merchant/returns/{id}/approve': pathItem({
+        post: {
+          summary: 'Approve return: refund by line + restock; order refunded or partially_refunded',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok({ type: 'object' }),
+        },
+      }),
+      '/api/merchant/returns/{id}/reject': pathItem({
+        post: {
+          summary: 'Reject a requested return',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok(returnRef),
         },
       }),
       '/api/merchant/orders/{id}/ship': pathItem({

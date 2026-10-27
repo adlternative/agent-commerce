@@ -156,6 +156,7 @@
                   "shipped",
                   "delivered",
                   "cancelled",
+                  "partially_refunded",
                   "refunded"
                 ]
               },
@@ -431,6 +432,29 @@
                 "type": "string",
                 "minLength": 1
               },
+              "lines": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "productId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "quantity": {
+                      "type": "integer",
+                      "exclusiveMinimum": true,
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "productId",
+                    "quantity"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              },
               "amountCents": {
                 "type": "integer",
                 "minimum": 0
@@ -461,6 +485,7 @@
               "id",
               "orderId",
               "reason",
+              "lines",
               "amountCents",
               "status",
               "idempotencyKey",
@@ -1634,6 +1659,29 @@
                   "reason": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "productId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "exclusiveMinimum": true,
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "productId",
+                        "quantity"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1
                   }
                 },
                 "required": [
@@ -2272,6 +2320,7 @@
                 "shipped",
                 "delivered",
                 "cancelled",
+                "partially_refunded",
                 "refunded"
               ]
             }
@@ -2303,6 +2352,186 @@
                     "$ref": "#/components/schemas/Order"
                   },
                   "description": "Bare order array by default. When cursor/limit are passed, response is { items, nextCursor, hasMore }."
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/merchant/returns": {
+      "get": {
+        "summary": "List return requests",
+        "tags": [
+          "merchant"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "requested",
+                "approved",
+                "rejected",
+                "refunded"
+              ]
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Return"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/merchant/returns/{id}/approve": {
+      "post": {
+        "summary": "Approve return: refund by line + restock; order refunded or partially_refunded",
+        "tags": [
+          "merchant"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/merchant/returns/{id}/reject": {
+      "post": {
+        "summary": "Reject a requested return",
+        "tags": [
+          "merchant"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Return"
                 }
               }
             }
@@ -4236,6 +4465,29 @@
                   "reason": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "productId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "exclusiveMinimum": true,
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "productId",
+                        "quantity"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1
                   }
                 },
                 "required": [

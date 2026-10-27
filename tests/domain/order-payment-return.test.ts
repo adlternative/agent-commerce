@@ -110,4 +110,116 @@ describe('payment + return', () => {
     expect(done.payment.status).toBe('refunded')
     expect(done.return.status).toBe('refunded')
   })
+
+  it('rejects duplicate open return', () => {
+    let order = sampleOrder()
+    order = capturePayment(
+      createPendingPayment({
+        id: 'pay_dup',
+        orderId: order.id,
+        amountCents: order.totalCents,
+        idempotencyKey: 'pay-dup',
+      }),
+      order,
+    ).order
+    const first = createReturnRequest({
+      id: 'ret_dup_1',
+      order,
+      reason: 'first',
+      idempotencyKey: 'ret-dup-1',
+    })
+    expect(() =>
+      createReturnRequest({
+        id: 'ret_dup_2',
+        order,
+        reason: 'second',
+        idempotencyKey: 'ret-dup-2',
+        existingReturns: [first],
+      }),
+    ).toThrow(DomainError)
+    try {
+      createReturnRequest({
+        id: 'ret_dup_2',
+        order,
+        reason: 'second',
+        idempotencyKey: 'ret-dup-2',
+        existingReturns: [first],
+      })
+    } catch (e) {
+      expect((e as DomainError).code).toBe('DUPLICATE_RETURN')
+    }
+  })
+
+  it('rejects return qty greater than ordered', () => {
+    let order = sampleOrder()
+    order = capturePayment(
+      createPendingPayment({
+        id: 'pay_qty',
+        orderId: order.id,
+        amountCents: order.totalCents,
+        idempotencyKey: 'pay-qty',
+      }),
+      order,
+    ).order
+    expect(() =>
+      createReturnRequest({
+        id: 'ret_qty',
+        order,
+        reason: 'too many',
+        lines: [{ productId: 'p1', quantity: 99 }],
+        idempotencyKey: 'ret-qty',
+      }),
+    ).toThrow(DomainError)
+    try {
+      createReturnRequest({
+        id: 'ret_qty',
+        order,
+        reason: 'too many',
+        lines: [{ productId: 'p1', quantity: 99 }],
+        idempotencyKey: 'ret-qty',
+      })
+    } catch (e) {
+      expect((e as DomainError).code).toBe('RETURN_QTY_EXCEEDS_ORDERED')
+    }
+  })
+
+  it('rejects return on already-refunded order', () => {
+    let order = sampleOrder()
+    const pending = createPendingPayment({
+      id: 'pay_rf',
+      orderId: order.id,
+      amountCents: order.totalCents,
+      idempotencyKey: 'pay-rf',
+    })
+    const paid = capturePayment(pending, order)
+    order = paid.order
+    const ret = createReturnRequest({
+      id: 'ret_rf',
+      order,
+      reason: 'full',
+      idempotencyKey: 'ret-rf',
+    })
+    const done = completeReturnRefund({ ...ret, status: 'approved' }, order, paid.payment)
+    expect(done.order.status).toBe('refunded')
+    expect(() =>
+      createReturnRequest({
+        id: 'ret_rf2',
+        order: done.order,
+        reason: 'again',
+        idempotencyKey: 'ret-rf2',
+        existingReturns: [done.return],
+      }),
+    ).toThrow(DomainError)
+    try {
+      createReturnRequest({
+        id: 'ret_rf2',
+        order: done.order,
+        reason: 'again',
+        idempotencyKey: 'ret-rf2',
+        existingReturns: [done.return],
+      })
+    } catch (e) {
+      expect((e as DomainError).code).toBe('ORDER_NOT_RETURNABLE')
+    }
+  })
 })
