@@ -1,12 +1,21 @@
-import { z } from 'zod'
 import type { CommerceService } from '../services/commerce.js'
 import type { Router } from './router.js'
 import type { RequestContext } from './http.js'
 import { DomainError } from '../domain/errors.js'
-import { PromotionSchema } from '../domain/promotion.js'
-import { UpsertProductInputSchema } from '../domain/product.js'
 import { paginate, paginateStable } from '../ai/pagination.js'
 import type { AuditLog } from '../ai/audit.js'
+import {
+  AddItemSchema,
+  AdjustStockSchema,
+  CreateCartSchema,
+  CreateReturnBodySchema,
+  PaymentWebhookBodySchema,
+  PlaceOrderBodySchema,
+  PromoCodeSchema,
+  PromotionSchema,
+  UpdateItemSchema,
+  UpsertProductInputSchema,
+} from './request-schemas.js'
 
 function pageProducts(
   ranked: Awaited<ReturnType<CommerceService['rankProducts']>>,
@@ -32,33 +41,6 @@ function requireKey(key: string | undefined): string {
   }
   return key
 }
-
-const AddItemSchema = z.object({
-  productId: z.string().min(1),
-  quantity: z.number().int().positive(),
-})
-
-const UpdateItemSchema = z.object({
-  quantity: z.number().int().nonnegative(),
-})
-
-const PromoCodeSchema = z.object({
-  code: z.string().min(1),
-})
-
-const AdjustStockSchema = z.object({
-  delta: z.number().int(),
-})
-
-const ReturnSchema = z.object({
-  reason: z.string().min(1),
-})
-
-const CreateCartSchema = z
-  .object({
-    customerId: z.string().min(1).optional(),
-  })
-  .optional()
 
 /**
  * Register customer / merchant / agent route groups on the shared router.
@@ -147,7 +129,7 @@ export function registerRoutes(
   })
 
   router.on('POST', '/api/customer/orders', ['customer', 'agent:customer'], async (ctx) => {
-    const body = z.object({ cartId: z.string().min(1) }).parse(ctx.body)
+    const body = PlaceOrderBodySchema.parse(ctx.body)
     return commerce.placeOrder(body.cartId, requireKey(ctx.idempotencyKey))
   })
 
@@ -168,7 +150,7 @@ export function registerRoutes(
   })
 
   router.on('POST', '/api/customer/orders/:id/returns', ['customer', 'agent:customer'], async (ctx) => {
-    const body = ReturnSchema.parse(ctx.body)
+    const body = CreateReturnBodySchema.parse(ctx.body)
     return commerce.requestReturn(
       ctx.params.id!,
       body.reason,
@@ -178,14 +160,7 @@ export function registerRoutes(
 
   // ── Payment webhooks (provider callbacks; idempotent on eventId) ─
   router.on('POST', '/api/webhooks/payment', ['merchant', 'agent:merchant'], async (ctx) => {
-    const body = z
-      .object({
-        eventId: z.string().min(1),
-        type: z.enum(['payment.captured', 'payment.failed']),
-        orderId: z.string().min(1),
-        amountCents: z.number().int().nonnegative().optional(),
-      })
-      .parse(ctx.body)
+    const body = PaymentWebhookBodySchema.parse(ctx.body)
     return commerce.handlePaymentWebhook(body)
   })
 
@@ -370,7 +345,7 @@ export function registerRoutes(
   })
 
   router.on('POST', '/api/agent/orders', ['agent:customer'], async (ctx) => {
-    const body = z.object({ cartId: z.string().min(1) }).parse(ctx.body)
+    const body = PlaceOrderBodySchema.parse(ctx.body)
     return commerce.placeOrder(body.cartId, requireKey(ctx.idempotencyKey))
   })
 
@@ -387,7 +362,7 @@ export function registerRoutes(
   })
 
   router.on('POST', '/api/agent/orders/:id/returns', ['agent:customer'], async (ctx) => {
-    const body = ReturnSchema.parse(ctx.body)
+    const body = CreateReturnBodySchema.parse(ctx.body)
     return commerce.requestReturn(
       ctx.params.id!,
       body.reason,

@@ -1,10 +1,14 @@
+import { z } from 'zod'
+
 /** Structured API / domain error body. All failures serialize to this shape. */
-export type ErrorBody = {
-  code: string
-  message: string
-  hint?: string
-  retryable: boolean
-}
+export const ErrorBodySchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  hint: z.string().optional(),
+  retryable: z.boolean(),
+})
+
+export type ErrorBody = z.infer<typeof ErrorBodySchema>
 
 export class DomainError extends Error {
   readonly code: string

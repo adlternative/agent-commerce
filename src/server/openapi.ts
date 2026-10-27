@@ -1,18 +1,82 @@
-/** OpenAPI 3.1 document for the three API surfaces. */
-
-const errorSchema = {
-  type: 'object',
-  required: ['code', 'message', 'retryable'],
-  properties: {
-    code: { type: 'string' },
-    message: { type: 'string' },
-    hint: { type: 'string' },
-    retryable: { type: 'boolean' },
-  },
-} as const
+/** OpenAPI 3.1 document for the three API surfaces — schemas from Zod single source. */
+import type { ZodTypeAny } from 'zod'
+import { zodToJsonSchema } from 'zod-to-json-schema'
+import { CartSchema } from '../domain/cart.js'
+import { ErrorBodySchema } from '../domain/errors.js'
+import { OrderSchema } from '../domain/order.js'
+import { ProductSchema } from '../domain/product.js'
+import { PromotionSchema } from '../domain/promotion.js'
+import { ReturnRequestSchema } from '../domain/return.js'
+import { StockLevelSchema } from '../domain/inventory.js'
+import { z } from 'zod'
+import {
+  AddItemSchema,
+  AdjustStockSchema,
+  CreateCartBodySchema,
+  CreateReturnBodySchema,
+  EmptyBodySchema,
+  PaymentWebhookBodySchema,
+  PlaceOrderBodySchema,
+  PromoCodeSchema,
+  UpdateItemSchema,
+  UpsertProductInputSchema,
+} from './request-schemas.js'
 
 const bearer = [{ BearerAuth: [] }]
 const apiKeyOrBearer = [{ BearerAuth: [] }, { ApiKeyAuth: [] }]
+
+/** Convert router `:param` templates to OpenAPI `{param}` paths. */
+export function routePathToOpenApi(path: string): string {
+  return path.replace(/:([A-Za-z_][A-Za-z0-9_]*)/g, '{$1}')
+}
+
+function zodSchema(schema: ZodTypeAny, name?: string): Record<string, unknown> {
+  const raw = zodToJsonSchema(schema, {
+    target: 'openApi3',
+    $refStrategy: 'none',
+    ...(name ? { name } : {}),
+  }) as Record<string, unknown>
+  // zod-to-json-schema may wrap named schemas; unwrap $ref-only envelopes.
+  const { $schema: _drop, ...rest } = raw
+  return rest
+}
+
+function jsonBody(schema: Record<string, unknown>, required = true) {
+  return {
+    required,
+    content: { 'application/json': { schema } },
+  }
+}
+
+function zodBody(schema: ZodTypeAny, required = true) {
+  return jsonBody(zodSchema(schema), required)
+}
+
+const emptyWriteBody = zodBody(EmptyBodySchema, false)
+
+function ok(schema: Record<string, unknown>) {
+  return {
+    '200': {
+      description: 'OK',
+      content: { 'application/json': { schema } },
+    },
+    default: {
+      description: 'Structured error',
+      content: {
+        'application/json': { schema: { $ref: '#/components/schemas/Error' } },
+      },
+    },
+  }
+}
+
+const idParam = (name = 'id') => ({
+  name,
+  in: 'path' as const,
+  required: true,
+  schema: { type: 'string' },
+})
+
+const idempotencyParam = { $ref: '#/components/parameters/IdempotencyKey' }
 
 const auditQueryParams = [
   { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 500 } },
@@ -55,34 +119,97 @@ const auditResponse = ok({
   },
 })
 
-function jsonBody(schema: Record<string, unknown>) {
-  return {
-    required: true,
-    content: { 'application/json': { schema } },
-  }
+const InventoryWithAvailableSchema = StockLevelSchema.extend({
+  available: z.number().int().nonnegative(),
+})
+
+const productListSchema = {
+  type: 'array',
+  items: { $ref: '#/components/schemas/Product' },
+  description:
+    'Bare product array by default. When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify).',
 }
 
-function ok(schema: Record<string, unknown>) {
-  return {
-    '200': {
-      description: 'OK',
-      content: { 'application/json': { schema } },
+const orderListSchema = {
+  type: 'array',
+  items: { $ref: '#/components/schemas/Order' },
+  description:
+    'Bare order array by default. When cursor/limit are passed, response is { items, nextCursor, hasMore }.',
+}
+
+const quoteSchema = {
+  type: 'object',
+  properties: {
+    lines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          productId: { type: 'string' },
+          quantity: { type: 'integer' },
+          unitPriceCents: { type: 'integer', description: 'Integer cents' },
+          lineTotalCents: { type: 'integer', description: 'Integer cents' },
+        },
+      },
     },
-    default: {
-      description: 'Structured error',
-      content: { 'application/json': { schema: errorSchema } },
-    },
-  }
+    subtotalCents: { type: 'integer', description: 'Integer cents' },
+    discountCents: { type: 'integer', description: 'Integer cents' },
+    totalCents: { type: 'integer', description: 'Integer cents' },
+    promotionCode: { type: 'string' },
+  },
+}
+
+const releaseExpiredSchema = {
+  type: 'object',
+  properties: {
+    releasedReservationIds: { type: 'array', items: { type: 'string' } },
+    cancelledOrderIds: { type: 'array', items: { type: 'string' } },
+  },
+}
+
+const metricsSchema = {
+  type: 'object',
+  properties: {
+    orderCount: { type: 'integer' },
+    gmvCents: { type: 'integer', description: 'Integer cents' },
+    outOfStockCount: { type: 'integer' },
+  },
+}
+
+type Op = Record<string, unknown>
+
+function pathItem(ops: Record<string, Op>): Record<string, Op> {
+  return ops
 }
 
 export function buildOpenApi() {
+  const productRef = { $ref: '#/components/schemas/Product' }
+  const orderRef = { $ref: '#/components/schemas/Order' }
+  const cartRef = { $ref: '#/components/schemas/Cart' }
+  const promoRef = { $ref: '#/components/schemas/Promotion' }
+  const returnRef = { $ref: '#/components/schemas/Return' }
+  const inventorySchema = zodSchema(InventoryWithAvailableSchema)
+
+  const upsertProductBody = zodBody(UpsertProductInputSchema)
+  // Annotate money fields for AI clients.
+  const upsertSchema = upsertProductBody.content['application/json'].schema as Record<
+    string,
+    unknown
+  >
+  if (upsertSchema.properties && typeof upsertSchema.properties === 'object') {
+    const props = upsertSchema.properties as Record<string, Record<string, unknown>>
+    if (props.priceCents) {
+      props.priceCents.description = 'Integer cents (分). Never floats.'
+    }
+  }
+
   return {
     openapi: '3.1.0',
     info: {
       title: 'Agent Commerce API',
-      version: '0.2.0',
+      version: '0.3.0',
       description:
-        'AI-native commerce HTTP API. Amounts are integer cents. Writes require Idempotency-Key.',
+        'AI-native commerce HTTP API. Amounts are integer cents. Writes require Idempotency-Key. Component schemas are generated from Zod.',
     },
     servers: [{ url: 'http://localhost:8787' }],
     components: {
@@ -110,49 +237,30 @@ export function buildOpenApi() {
         },
       },
       schemas: {
-        Error: errorSchema,
-        Product: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            sku: { type: 'string' },
-            name: { type: 'string' },
-            description: { type: 'string' },
-            priceCents: { type: 'integer' },
-            tags: { type: 'array', items: { type: 'string' } },
-            agentNotes: { type: 'string' },
-            active: { type: 'boolean' },
-          },
-        },
-        Order: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            status: {
-              type: 'string',
-              enum: ['created', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'],
-            },
-            totalCents: { type: 'integer' },
-          },
-        },
+        Error: zodSchema(ErrorBodySchema, 'Error'),
+        Product: zodSchema(ProductSchema, 'Product'),
+        Order: zodSchema(OrderSchema, 'Order'),
+        Cart: zodSchema(CartSchema, 'Cart'),
+        Promotion: zodSchema(PromotionSchema, 'Promotion'),
+        Return: zodSchema(ReturnRequestSchema, 'Return'),
       },
     },
     paths: {
-      '/health': {
+      '/health': pathItem({
         get: {
           summary: 'Liveness (legacy alias of /healthz)',
           security: [],
           responses: ok({ type: 'object', properties: { ok: { type: 'boolean' } } }),
         },
-      },
-      '/healthz': {
+      }),
+      '/healthz': pathItem({
         get: {
           summary: 'Liveness probe (no auth)',
           security: [],
           responses: ok({ type: 'object', properties: { ok: { type: 'boolean' } } }),
         },
-      },
-      '/readyz': {
+      }),
+      '/readyz': pathItem({
         get: {
           summary: 'Readiness probe — verifies store is readable and writable (no auth)',
           security: [],
@@ -175,8 +283,8 @@ export function buildOpenApi() {
             },
           },
         },
-      },
-      '/metrics': {
+      }),
+      '/metrics': pathItem({
         get: {
           summary: 'Prometheus HTTP metrics',
           description:
@@ -193,8 +301,29 @@ export function buildOpenApi() {
             },
           },
         },
-      },
-      '/api/customer/products': {
+      }),
+      '/openapi.json': pathItem({
+        get: {
+          summary: 'OpenAPI 3.1 document',
+          security: [],
+          responses: {
+            '200': {
+              description: 'OpenAPI document',
+              content: { 'application/json': { schema: { type: 'object' } } },
+            },
+          },
+        },
+      }),
+      '/.well-known/ai-commerce.json': pathItem({
+        get: {
+          summary: 'AI commerce capability discovery',
+          security: [],
+          responses: ok({ type: 'object' }),
+        },
+      }),
+
+      // ── Customer ──────────────────────────────────────────
+      '/api/customer/products': pathItem({
         get: {
           summary: 'List / search products',
           tags: ['customer'],
@@ -202,205 +331,308 @@ export function buildOpenApi() {
           parameters: [
             { name: 'q', in: 'query', schema: { type: 'string' } },
             { name: 'tag', in: 'query', schema: { type: 'string' } },
+            { name: 'cursor', in: 'query', schema: { type: 'string' } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1 } },
           ],
-          responses: ok({ type: 'array', items: { $ref: '#/components/schemas/Product' } }),
+          responses: ok(productListSchema),
         },
-      },
-      '/api/customer/products/{id}': {
+      }),
+      '/api/customer/products/{id}': pathItem({
         get: {
           summary: 'Get product',
           tags: ['customer'],
           security: bearer,
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-          responses: ok({ $ref: '#/components/schemas/Product' }),
+          parameters: [idParam()],
+          responses: ok(productRef),
         },
-      },
-      '/api/customer/carts': {
+      }),
+      '/api/customer/inventory/{productId}': pathItem({
+        get: {
+          summary: 'Check inventory availability',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [idParam('productId')],
+          responses: ok(inventorySchema),
+        },
+      }),
+      '/api/customer/carts': pathItem({
         post: {
           summary: 'Create cart',
           tags: ['customer'],
           security: bearer,
-          parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }],
-          requestBody: jsonBody({
-            type: 'object',
-            properties: { customerId: { type: 'string' } },
-          }),
-          responses: ok({ type: 'object' }),
+          parameters: [idempotencyParam],
+          requestBody: zodBody(CreateCartBodySchema, false),
+          responses: ok(cartRef),
         },
-      },
-      '/api/customer/carts/{id}/items': {
+      }),
+      '/api/customer/carts/{id}': pathItem({
+        get: {
+          summary: 'Get cart',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [idParam()],
+          responses: ok(cartRef),
+        },
+      }),
+      '/api/customer/carts/{id}/items': pathItem({
         post: {
           summary: 'Add cart item',
           tags: ['customer'],
           security: bearer,
-          parameters: [
-            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-            { $ref: '#/components/parameters/IdempotencyKey' },
-          ],
-          requestBody: jsonBody({
-            type: 'object',
-            required: ['productId', 'quantity'],
-            properties: {
-              productId: { type: 'string' },
-              quantity: { type: 'integer', minimum: 1 },
-            },
-          }),
-          responses: ok({ type: 'object' }),
+          parameters: [idParam(), idempotencyParam],
+          requestBody: zodBody(AddItemSchema),
+          responses: ok(cartRef),
         },
-      },
-      '/api/customer/orders': {
+      }),
+      '/api/customer/carts/{id}/items/{productId}': pathItem({
+        patch: {
+          summary: 'Update cart item quantity',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [idParam(), idParam('productId'), idempotencyParam],
+          requestBody: zodBody(UpdateItemSchema),
+          responses: ok(cartRef),
+        },
+        delete: {
+          summary: 'Remove cart item',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [idParam(), idParam('productId'), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok(cartRef),
+        },
+      }),
+      '/api/customer/carts/{id}/promotion': pathItem({
+        post: {
+          summary: 'Apply promotion code to cart',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: zodBody(PromoCodeSchema),
+          responses: ok(cartRef),
+        },
+      }),
+      '/api/customer/carts/{id}/quote': pathItem({
+        get: {
+          summary: 'Quote cart totals (integer cents)',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [idParam()],
+          responses: ok(quoteSchema),
+        },
+      }),
+      '/api/customer/orders': pathItem({
         post: {
           summary: 'Place order (reserves stock)',
           tags: ['customer'],
           security: bearer,
-          parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }],
-          requestBody: jsonBody({
-            type: 'object',
-            required: ['cartId'],
-            properties: { cartId: { type: 'string' } },
-          }),
-          responses: ok({ $ref: '#/components/schemas/Order' }),
+          parameters: [idempotencyParam],
+          requestBody: zodBody(PlaceOrderBodySchema),
+          responses: ok(orderRef),
         },
-      },
-      '/api/customer/orders/{id}/pay': {
+      }),
+      '/api/customer/orders/{id}': pathItem({
+        get: {
+          summary: 'Get order',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [idParam()],
+          responses: ok(orderRef),
+        },
+      }),
+      '/api/customer/orders/{id}/pay': pathItem({
         post: {
           summary: 'Pay order (commits stock)',
           tags: ['customer'],
           security: bearer,
-          parameters: [
-            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-            { $ref: '#/components/parameters/IdempotencyKey' },
-          ],
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
           responses: ok({ type: 'object' }),
         },
-      },
-      '/api/customer/orders/{id}/receive': {
+      }),
+      '/api/customer/orders/{id}/cancel': pathItem({
+        post: {
+          summary: 'Cancel unpaid order and release holds',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok(orderRef),
+        },
+      }),
+      '/api/customer/orders/{id}/receive': pathItem({
         post: {
           summary: 'Confirm goods received (shipped → delivered)',
           tags: ['customer'],
           security: bearer,
-          parameters: [
-            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-            { $ref: '#/components/parameters/IdempotencyKey' },
-          ],
-          responses: ok({ $ref: '#/components/schemas/Order' }),
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok(orderRef),
         },
-      },
-      '/api/webhooks/payment': {
+      }),
+      '/api/customer/orders/{id}/returns': pathItem({
+        post: {
+          summary: 'Request a return / refund',
+          tags: ['customer'],
+          security: bearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: zodBody(CreateReturnBodySchema),
+          responses: ok(returnRef),
+        },
+      }),
+
+      // ── Webhooks ──────────────────────────────────────────
+      '/api/webhooks/payment': pathItem({
         post: {
           summary: 'Payment provider webhook (idempotent on eventId)',
           tags: ['webhooks'],
           security: bearer,
-          requestBody: jsonBody({
-            type: 'object',
-            required: ['eventId', 'type', 'orderId'],
-            properties: {
-              eventId: { type: 'string' },
-              type: { type: 'string', enum: ['payment.captured', 'payment.failed'] },
-              orderId: { type: 'string' },
-              amountCents: { type: 'integer' },
-            },
-          }),
+          requestBody: zodBody(PaymentWebhookBodySchema),
           responses: ok({ type: 'object' }),
         },
-      },
-      '/api/merchant/orders/{id}/ship': {
-        post: {
-          summary: 'Ship a paid order',
+      }),
+
+      // ── Merchant ──────────────────────────────────────────
+      '/api/merchant/metrics': pathItem({
+        get: {
+          summary: 'Merchant business metrics (GMV, orders, OOS)',
+          tags: ['merchant'],
+          security: bearer,
+          responses: ok(metricsSchema),
+        },
+      }),
+      '/api/merchant/products': pathItem({
+        get: {
+          summary: 'List products (merchant)',
           tags: ['merchant'],
           security: bearer,
           parameters: [
-            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-            { $ref: '#/components/parameters/IdempotencyKey' },
+            { name: 'q', in: 'query', schema: { type: 'string' } },
+            { name: 'tag', in: 'query', schema: { type: 'string' } },
+            { name: 'activeOnly', in: 'query', schema: { type: 'boolean' } },
           ],
-          responses: ok({ $ref: '#/components/schemas/Order' }),
+          responses: ok(productListSchema),
         },
-      },
-      '/api/merchant/orders/{id}/receive': {
-        post: {
-          summary: 'Mark order received/delivered',
-          tags: ['merchant'],
-          security: bearer,
-          parameters: [
-            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-            { $ref: '#/components/parameters/IdempotencyKey' },
-          ],
-          responses: ok({ $ref: '#/components/schemas/Order' }),
-        },
-      },
-      '/api/merchant/reservations/release-expired': {
-        post: {
-          summary: 'Auto-release timed-out inventory holds and cancel unpaid orders',
-          tags: ['merchant'],
-          security: bearer,
-          responses: ok({
-            type: 'object',
-            properties: {
-              releasedReservationIds: { type: 'array', items: { type: 'string' } },
-              cancelledOrderIds: { type: 'array', items: { type: 'string' } },
-            },
-          }),
-        },
-      },
-      '/api/merchant/products': {
         post: {
           summary: 'Upsert product',
           tags: ['merchant'],
           security: bearer,
-          parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }],
-          requestBody: jsonBody({ type: 'object' }),
-          responses: ok({ $ref: '#/components/schemas/Product' }),
+          parameters: [idempotencyParam],
+          requestBody: upsertProductBody,
+          responses: ok(productRef),
         },
-      },
-      '/api/merchant/products/{id}/stock': {
-        post: {
-          summary: 'Adjust stock',
+      }),
+      '/api/merchant/products/{id}': pathItem({
+        put: {
+          summary: 'Upsert product by id',
           tags: ['merchant'],
           security: bearer,
-          parameters: [
-            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-            { $ref: '#/components/parameters/IdempotencyKey' },
-          ],
-          requestBody: jsonBody({
-            type: 'object',
-            required: ['delta'],
-            properties: { delta: { type: 'integer' } },
-          }),
-          responses: ok({ type: 'object' }),
+          parameters: [idParam(), idempotencyParam],
+          requestBody: upsertProductBody,
+          responses: ok(productRef),
         },
-      },
-      '/api/merchant/orders': {
+      }),
+      '/api/merchant/products/{id}/stock': pathItem({
+        post: {
+          summary: 'Adjust stock onHand by delta',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: zodBody(AdjustStockSchema),
+          responses: ok(inventorySchema),
+        },
+      }),
+      '/api/merchant/inventory/{productId}': pathItem({
+        get: {
+          summary: 'Check inventory (merchant)',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [idParam('productId')],
+          responses: ok(inventorySchema),
+        },
+      }),
+      '/api/merchant/orders': pathItem({
         get: {
           summary: 'List orders',
           tags: ['merchant'],
           security: bearer,
-          responses: ok({ type: 'array', items: { $ref: '#/components/schemas/Order' } }),
+          parameters: [
+            { name: 'customerId', in: 'query', schema: { type: 'string' } },
+            {
+              name: 'status',
+              in: 'query',
+              schema: {
+                type: 'string',
+                enum: ['created', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'],
+              },
+            },
+            { name: 'cursor', in: 'query', schema: { type: 'string' } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1 } },
+          ],
+          responses: ok(orderListSchema),
         },
-      },
-      '/api/agent/products': {
-        get: {
-          summary: 'Agent product search',
-          tags: ['agent'],
-          security: apiKeyOrBearer,
-          parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
-          responses: ok({ type: 'array', items: { $ref: '#/components/schemas/Product' } }),
-        },
-      },
-      '/api/agent/orders': {
+      }),
+      '/api/merchant/orders/{id}/ship': pathItem({
         post: {
-          summary: 'Agent place order',
-          tags: ['agent'],
-          security: apiKeyOrBearer,
-          parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }],
-          requestBody: jsonBody({
-            type: 'object',
-            required: ['cartId'],
-            properties: { cartId: { type: 'string' } },
-          }),
-          responses: ok({ $ref: '#/components/schemas/Order' }),
+          summary: 'Ship a paid order',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok(orderRef),
         },
-      },
-      '/api/agent/audit': {
+      }),
+      '/api/merchant/orders/{id}/deliver': pathItem({
+        post: {
+          summary: 'Mark order delivered',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok(orderRef),
+        },
+      }),
+      '/api/merchant/orders/{id}/receive': pathItem({
+        post: {
+          summary: 'Mark order received/delivered (alias)',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok(orderRef),
+        },
+      }),
+      '/api/merchant/reservations/release-expired': pathItem({
+        post: {
+          summary: 'Auto-release timed-out inventory holds and cancel unpaid orders',
+          tags: ['merchant'],
+          security: bearer,
+          requestBody: emptyWriteBody,
+          responses: ok(releaseExpiredSchema),
+        },
+      }),
+      '/api/merchant/promotions': pathItem({
+        post: {
+          summary: 'Upsert promotion (threshold / percent / fixed; amounts in cents)',
+          tags: ['merchant'],
+          security: bearer,
+          parameters: [idempotencyParam],
+          requestBody: zodBody(PromotionSchema),
+          responses: ok(promoRef),
+        },
+      }),
+      '/api/merchant/audit': pathItem({
+        get: {
+          summary: 'Query audit events (merchant)',
+          tags: ['merchant', 'security'],
+          security: apiKeyOrBearer,
+          parameters: [...auditQueryParams],
+          responses: auditResponse,
+        },
+      }),
+
+      // ── Agent ─────────────────────────────────────────────
+      '/api/agent/audit': pathItem({
         get: {
           summary: 'Query recent audit events',
           description:
@@ -410,16 +642,170 @@ export function buildOpenApi() {
           parameters: [...auditQueryParams],
           responses: auditResponse,
         },
-      },
-      '/api/merchant/audit': {
+      }),
+      '/api/agent/products': pathItem({
         get: {
-          summary: 'Query audit events (merchant)',
-          tags: ['merchant', 'security'],
+          summary: 'Agent product search',
+          tags: ['agent'],
           security: apiKeyOrBearer,
-          parameters: [...auditQueryParams],
-          responses: auditResponse,
+          parameters: [
+            { name: 'q', in: 'query', schema: { type: 'string' } },
+            { name: 'tag', in: 'query', schema: { type: 'string' } },
+            { name: 'cursor', in: 'query', schema: { type: 'string' } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1 } },
+          ],
+          responses: ok(productListSchema),
         },
-      },
+        post: {
+          summary: 'Agent upsert product (requires agent:merchant)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idempotencyParam],
+          requestBody: upsertProductBody,
+          responses: ok(productRef),
+        },
+      }),
+      '/api/agent/products/{id}': pathItem({
+        get: {
+          summary: 'Get product (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam()],
+          responses: ok(productRef),
+        },
+      }),
+      '/api/agent/products/{id}/stock': pathItem({
+        post: {
+          summary: 'Adjust stock (agent:merchant)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: zodBody(AdjustStockSchema),
+          responses: ok(inventorySchema),
+        },
+      }),
+      '/api/agent/inventory/{productId}': pathItem({
+        get: {
+          summary: 'Check inventory (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam('productId')],
+          responses: ok(inventorySchema),
+        },
+      }),
+      '/api/agent/carts': pathItem({
+        post: {
+          summary: 'Create cart (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idempotencyParam],
+          requestBody: zodBody(CreateCartBodySchema, false),
+          responses: ok(cartRef),
+        },
+      }),
+      '/api/agent/carts/{id}/items': pathItem({
+        post: {
+          summary: 'Add cart item (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: zodBody(AddItemSchema),
+          responses: ok(cartRef),
+        },
+      }),
+      '/api/agent/carts/{id}/items/{productId}': pathItem({
+        patch: {
+          summary: 'Update cart item (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam(), idParam('productId'), idempotencyParam],
+          requestBody: zodBody(UpdateItemSchema),
+          responses: ok(cartRef),
+        },
+        delete: {
+          summary: 'Remove cart item (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam(), idParam('productId'), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok(cartRef),
+        },
+      }),
+      '/api/agent/carts/{id}/promotion': pathItem({
+        post: {
+          summary: 'Apply promotion (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: zodBody(PromoCodeSchema),
+          responses: ok(cartRef),
+        },
+      }),
+      '/api/agent/carts/{id}/quote': pathItem({
+        get: {
+          summary: 'Quote cart (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam()],
+          responses: ok(quoteSchema),
+        },
+      }),
+      '/api/agent/orders': pathItem({
+        get: {
+          summary: 'List orders (agent:merchant)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [{ name: 'customerId', in: 'query', schema: { type: 'string' } }],
+          responses: ok(orderListSchema),
+        },
+        post: {
+          summary: 'Agent place order',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idempotencyParam],
+          requestBody: zodBody(PlaceOrderBodySchema),
+          responses: ok(orderRef),
+        },
+      }),
+      '/api/agent/orders/{id}': pathItem({
+        get: {
+          summary: 'Get order (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam()],
+          responses: ok(orderRef),
+        },
+      }),
+      '/api/agent/orders/{id}/pay': pathItem({
+        post: {
+          summary: 'Pay order (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok({ type: 'object' }),
+        },
+      }),
+      '/api/agent/orders/{id}/cancel': pathItem({
+        post: {
+          summary: 'Cancel order (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: emptyWriteBody,
+          responses: ok(orderRef),
+        },
+      }),
+      '/api/agent/orders/{id}/returns': pathItem({
+        post: {
+          summary: 'Request return (agent)',
+          tags: ['agent'],
+          security: apiKeyOrBearer,
+          parameters: [idParam(), idempotencyParam],
+          requestBody: zodBody(CreateReturnBodySchema),
+          responses: ok(returnRef),
+        },
+      }),
     },
   }
 }
