@@ -215,15 +215,24 @@ describe('HTTP API integration', () => {
       token: 'agent-token',
     })
     expect(listed.status).toBe(200)
-    const items = listed.json as unknown as Array<Record<string, unknown>>
-    expect(Array.isArray(items)).toBe(true)
+    expect(listed.json).toMatchObject({
+      items: expect.any(Array),
+      nextCursor: null,
+      hasMore: false,
+    })
+    const items = listed.json.items as Array<Record<string, unknown>>
     const row = items.find((p) => p.id === oosId)
     expect(row).toBeTruthy()
     expect(row).toMatchObject({ available: 0 })
 
     const customerList = await api(baseUrl, 'GET', '/api/customer/products?q=Out%20Of%20Stock')
     expect(customerList.status).toBe(200)
-    const customerItems = customerList.json as unknown as Array<Record<string, unknown>>
+    expect(customerList.json).toMatchObject({
+      items: expect.any(Array),
+      nextCursor: null,
+      hasMore: false,
+    })
+    const customerItems = customerList.json.items as Array<Record<string, unknown>>
     expect(customerItems.find((p) => p.id === oosId)).toMatchObject({ available: 0 })
 
     const cart = await api(baseUrl, 'POST', '/api/agent/carts', {
@@ -360,7 +369,12 @@ describe('HTTP API integration', () => {
       token: 'merchant-token',
     })
     expect(listed.status).toBe(200)
-    const row = (listed.json as unknown as Json[]).find((p) => p.sku === 'STOCK-01')
+    expect(listed.json).toMatchObject({
+      items: expect.any(Array),
+      nextCursor: null,
+      hasMore: false,
+    })
+    const row = (listed.json.items as Json[]).find((p) => p.sku === 'STOCK-01')
     expect(row).toBeTruthy()
 
     const inv = await api(baseUrl, 'GET', `/api/merchant/inventory/${created.json.id}`, {

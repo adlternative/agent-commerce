@@ -65,8 +65,13 @@ export function createMerchantApi(baseUrl = '') {
 
   return {
     metrics: () => request<Metrics>('GET', '/api/merchant/metrics'),
-    listProducts: () =>
-      request<Product[]>('GET', '/api/merchant/products?activeOnly=false'),
+    listProducts: async () => {
+      const page = await request<{ items: Product[] }>(
+        'GET',
+        '/api/merchant/products?activeOnly=false',
+      )
+      return page.items
+    },
     upsertProduct: (body: Record<string, unknown>) =>
       request<Product>('POST', '/api/merchant/products', {
         body,

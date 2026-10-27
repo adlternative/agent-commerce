@@ -123,12 +123,34 @@ const InventoryWithAvailableSchema = StockLevelSchema.extend({
   available: z.number().int().nonnegative(),
 })
 
-const productListSchema = {
-  type: 'array',
-  items: { $ref: '#/components/schemas/Product' },
+/** Shared cursor-page envelope for product lists (always — with or without limit). */
+const productPageSchema = {
+  type: 'object',
+  required: ['items', 'nextCursor', 'hasMore'],
   description:
-    'Bare product array by default (each item includes integer `available`). When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify).',
+    'Always { items, nextCursor, hasMore }. Each Product item may include integer `available` (sellable qty) on customer/agent lists. Omit limit/cursor to return the full match set (nextCursor null). With limit (1–100, default 20 when paging) and optional cursor, returns one page.',
+  properties: {
+    items: { type: 'array', items: { $ref: '#/components/schemas/Product' } },
+    nextCursor: { type: 'string', nullable: true, description: 'Opaque cursor for the next page; null when no more' },
+    hasMore: { type: 'boolean' },
+  },
 }
+
+const productListPaginationParams = [
+  {
+    name: 'cursor',
+    in: 'query',
+    schema: { type: 'string' },
+    description: 'Opaque pagination cursor from a previous nextCursor',
+  },
+  {
+    name: 'limit',
+    in: 'query',
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+    description:
+      'Page size when paging (1–100; default 20). When omitted (and no cursor), all matching products are returned.',
+  },
+] as const
 
 const orderListSchema = {
   type: 'array',
@@ -331,10 +353,9 @@ export function buildOpenApi() {
           parameters: [
             { name: 'q', in: 'query', schema: { type: 'string' } },
             { name: 'tag', in: 'query', schema: { type: 'string' } },
-            { name: 'cursor', in: 'query', schema: { type: 'string' } },
-            { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1 } },
+            ...productListPaginationParams,
           ],
-          responses: ok(productListSchema),
+          responses: ok(productPageSchema),
         },
       }),
       '/api/customer/products/{id}': pathItem({
@@ -510,8 +531,9 @@ export function buildOpenApi() {
             { name: 'q', in: 'query', schema: { type: 'string' } },
             { name: 'tag', in: 'query', schema: { type: 'string' } },
             { name: 'activeOnly', in: 'query', schema: { type: 'boolean' } },
+            ...productListPaginationParams,
           ],
-          responses: ok(productListSchema),
+          responses: ok(productPageSchema),
         },
         post: {
           summary: 'Upsert product',
@@ -651,10 +673,9 @@ export function buildOpenApi() {
           parameters: [
             { name: 'q', in: 'query', schema: { type: 'string' } },
             { name: 'tag', in: 'query', schema: { type: 'string' } },
-            { name: 'cursor', in: 'query', schema: { type: 'string' } },
-            { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1 } },
+            ...productListPaginationParams,
           ],
-          responses: ok(productListSchema),
+          responses: ok(productPageSchema),
         },
         post: {
           summary: 'Agent upsert product (requires agent:merchant)',

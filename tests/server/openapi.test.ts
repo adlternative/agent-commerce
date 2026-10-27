@@ -39,6 +39,28 @@ describe('openapi', () => {
     expect(schema?.properties?.priceCents).toBeTruthy()
     expect(schema?.required).toEqual(expect.arrayContaining(['sku', 'name', 'priceCents']))
 
+    for (const path of ['/api/customer/products', '/api/merchant/products', '/api/agent/products']) {
+      const get = doc.paths[path as keyof typeof doc.paths] as {
+        get?: {
+          parameters?: Array<{ name: string; schema?: { minimum?: number; maximum?: number; default?: number } }>
+          responses?: { '200'?: { content?: { 'application/json'?: { schema?: Record<string, unknown> } } } }
+        }
+      }
+      const params = get.get?.parameters ?? []
+      const limit = params.find((p) => p.name === 'limit')
+      const cursor = params.find((p) => p.name === 'cursor')
+      expect(cursor, `${path} missing cursor`).toBeTruthy()
+      expect(limit, `${path} missing limit`).toBeTruthy()
+      expect(limit?.schema?.minimum).toBe(1)
+      expect(limit?.schema?.maximum).toBe(100)
+      expect(limit?.schema?.default).toBe(20)
+      const resp = get.get?.responses?.['200']?.content?.['application/json']?.schema
+      expect(resp?.type).toBe('object')
+      expect(resp?.required).toEqual(expect.arrayContaining(['items', 'nextCursor', 'hasMore']))
+      expect((resp?.properties as Record<string, unknown>)?.items).toBeTruthy()
+      expect((resp?.properties as Record<string, unknown>)?.nextCursor).toBeTruthy()
+    }
+
     const out = join(process.cwd(), 'docs', 'openapi.json')
     mkdirSync(join(process.cwd(), 'docs'), { recursive: true })
     writeFileSync(out, JSON.stringify(doc, null, 2))
