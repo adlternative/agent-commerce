@@ -21,7 +21,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-16 | Product list always `{items,nextCursor}` (#651) | Done | #663 @ `5c59dca`; always page envelope + OpenAPI limit/cursor; 33 files / 176 unit + 3 e2e |
 | ACP-18 | README test/E2E docs | Done | #656 @ `b205bff`; scripts table + playwright install + `E2E_API_PORT` |
 | ACP-19 | Fail-closed JWT_SECRET + demo token gate (#654) | In progress | No hardcoded JWT secret; demos only with `ALLOW_DEMO_TOKENS=1` or non-production; well-known omits tokens when off |
-| ACP-20 | Agent product list `available` | Done | #662 @ `fef4a7d`; batch stock + OpenAPI `available` + 409 on OOS add |
+| ACP-20 | Agent product list `available` | Done | #662 @ `fef4a7d`; list `available` + batch stock IN + 409 OOS; 32 files / 172 unit + 3 e2e |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.
