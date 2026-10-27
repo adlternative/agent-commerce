@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage } from 'node:http'
 import { DomainError } from '../domain/errors.js'
 
@@ -40,41 +40,121 @@ export type AuthConfig = {
   jwt?: JwtConfig
 }
 
+/**
+ * Former hardcoded HS256 secret that shipped in public source.
+ * NEVER use for signing or as a server default — kept only so regression tests can prove
+ * JWTs forged with this value are rejected (401).
+ */
 export const DEFAULT_JWT_SECRET = 'agent-commerce-dev-jwt-secret'
 
-export const DEFAULT_AUTH: AuthConfig = {
-  tokens: {
-    'customer-token': { role: 'customer', subject: 'cust_demo' },
-    'merchant-token': { role: 'merchant', subject: 'merchant_demo' },
-    /** Shopping-only agent — no merchant surface. */
-    'agent-token': {
-      role: 'agent',
-      subject: 'agent_demo',
-      scopes: ['agent:customer'],
-    },
-    /** Merchant-ops agent — no customer surface. */
-    'agent-merchant-token': {
-      role: 'agent',
-      subject: 'agent_merchant_demo',
-      scopes: ['agent:merchant'],
-    },
+/** Stable non-public secret for in-process DEFAULT_AUTH / unit tests. */
+export const TEST_JWT_SECRET = 'agent-commerce-test-jwt-secret'
+
+/** Opaque demo bearer tokens (local / explicit allow only). */
+export const DEMO_TOKENS: Record<string, Actor> = {
+  'customer-token': { role: 'customer', subject: 'cust_demo' },
+  'merchant-token': { role: 'merchant', subject: 'merchant_demo' },
+  /** Shopping-only agent — no merchant surface. */
+  'agent-token': {
+    role: 'agent',
+    subject: 'agent_demo',
+    scopes: ['agent:customer'],
   },
-  apiKeys: {
-    'customer-key': { role: 'customer', subject: 'cust_demo' },
-    'merchant-key': { role: 'merchant', subject: 'merchant_demo' },
-    'agent-key': {
-      role: 'agent',
-      subject: 'agent_demo',
-      scopes: ['agent:customer'],
-    },
-    'agent-merchant-key': {
-      role: 'agent',
-      subject: 'agent_merchant_demo',
-      scopes: ['agent:merchant'],
-    },
+  /** Merchant-ops agent — no customer surface. */
+  'agent-merchant-token': {
+    role: 'agent',
+    subject: 'agent_merchant_demo',
+    scopes: ['agent:merchant'],
   },
-  jwt: { secret: DEFAULT_JWT_SECRET },
 }
+
+/** Demo API keys (local / explicit allow only). */
+export const DEMO_API_KEYS: Record<string, Actor> = {
+  'customer-key': { role: 'customer', subject: 'cust_demo' },
+  'merchant-key': { role: 'merchant', subject: 'merchant_demo' },
+  'agent-key': {
+    role: 'agent',
+    subject: 'agent_demo',
+    scopes: ['agent:customer'],
+  },
+  'agent-merchant-key': {
+    role: 'agent',
+    subject: 'agent_merchant_demo',
+    scopes: ['agent:merchant'],
+  },
+}
+
+export class MissingJwtSecretError extends Error {
+  constructor() {
+    super(
+      'Refusing to start: JWT_SECRET is required when NODE_ENV=production. ' +
+        'Set a strong secret via the JWT_SECRET environment variable. ' +
+        'Demo tokens require ALLOW_DEMO_TOKENS=1 (or a non-production NODE_ENV).',
+    )
+    this.name = 'MissingJwtSecretError'
+  }
+}
+
+/**
+ * Demo credentials are on when ALLOW_DEMO_TOKENS=1, or when NODE_ENV is not production.
+ * Production defaults fail-closed (no demo tokens/keys) unless explicitly allowed.
+ */
+export function demoCredentialsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.ALLOW_DEMO_TOKENS === '1') return true
+  return env.NODE_ENV !== 'production'
+}
+
+/**
+ * Resolve HS256 secret:
+ * - JWT_SECRET env → use it
+ * - production without JWT_SECRET → refuse (throw MissingJwtSecretError)
+ * - non-production without JWT_SECRET → ephemeral random secret (never logged)
+ */
+export function resolveJwtSecret(env: NodeJS.ProcessEnv = process.env): string {
+  const fromEnv = env.JWT_SECRET?.trim()
+  if (fromEnv) return fromEnv
+  if (env.NODE_ENV === 'production') {
+    throw new MissingJwtSecretError()
+  }
+  return randomBytes(32).toString('hex')
+}
+
+export type BuildAuthConfigOptions = {
+  env?: NodeJS.ProcessEnv
+  /** Override JWT secret (tests). */
+  jwtSecret?: string
+  /** Force demo credentials on/off (tests). */
+  allowDemoCredentials?: boolean
+}
+
+/** Build AuthConfig from env (fail-closed in production). */
+export function buildAuthConfig(options: BuildAuthConfigOptions = {}): AuthConfig {
+  const env = options.env ?? process.env
+  const secret = options.jwtSecret ?? resolveJwtSecret(env)
+  const demos =
+    options.allowDemoCredentials !== undefined
+      ? options.allowDemoCredentials
+      : demoCredentialsEnabled(env)
+  return {
+    tokens: demos ? { ...DEMO_TOKENS } : {},
+    apiKeys: demos ? { ...DEMO_API_KEYS } : {},
+    jwt: { secret },
+  }
+}
+
+/** Whether this config advertises/accepts demo opaque tokens or API keys. */
+export function authHasDemoCredentials(config: AuthConfig): boolean {
+  return Object.keys(config.tokens).length > 0 || Object.keys(config.apiKeys ?? {}).length > 0
+}
+
+/**
+ * In-process default for unit tests / createAppServer when auth is omitted.
+ * Uses a non-public test secret and demo credentials — never the legacy public DEFAULT_JWT_SECRET.
+ */
+export const DEFAULT_AUTH: AuthConfig = buildAuthConfig({
+  jwtSecret: TEST_JWT_SECRET,
+  allowDemoCredentials: true,
+})
 
 function isRole(value: unknown): value is Role {
   return value === 'customer' || value === 'merchant' || value === 'agent'

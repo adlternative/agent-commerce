@@ -6,9 +6,11 @@ Auth (any one):
 
 | Scheme | Credential | Role / scopes |
 |--------|------------|------|
-| `Authorization: Bearer` | `customer-token` / `merchant-token` / `agent-token` (`agent:customer`) / `agent-merchant-token` (`agent:merchant`) | opaque demo tokens |
-| `Authorization: Bearer` | HS256 JWT `{ sub, role, scopes?, iat?, exp? }` | minted with server JWT secret; agents need `scopes` |
-| `X-API-Key` or `Authorization: ApiKey` | `customer-key` / `merchant-key` / `agent-key` / `agent-merchant-key` | API keys |
+| `Authorization: Bearer` | `customer-token` / `merchant-token` / `agent-token` (`agent:customer`) / `agent-merchant-token` (`agent:merchant`) | opaque demo tokens — only when `ALLOW_DEMO_TOKENS=1` or `NODE_ENV!=='production'` |
+| `Authorization: Bearer` | HS256 JWT `{ sub, role, scopes?, iat?, exp? }` | minted with server `JWT_SECRET`; agents need `scopes` |
+| `X-API-Key` or `Authorization: ApiKey` | `customer-key` / `merchant-key` / `agent-key` / `agent-merchant-key` | demo API keys — same gate as demo tokens |
+
+**Production:** set `JWT_SECRET` (required — process refuses to start without it when `NODE_ENV=production`). Demo tokens/keys are off unless `ALLOW_DEMO_TOKENS=1`. Non-production without `JWT_SECRET` uses an ephemeral random secret that is never logged or advertised.
 
 RBAC surfaces: **customer** → `customer` + `agent:customer`; **merchant** → `merchant` + `agent:merchant`; **agent shopping aliases** → `agent:customer`; **agent merchant-ops / audit** → `agent:merchant`. Agent role alone never implies merchant (or customer) access — missing scope → `403 FORBIDDEN`.
 
