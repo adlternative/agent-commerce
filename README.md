@@ -1,136 +1,60 @@
 # Agent Commerce
 
-面向 **人 + 商家 + AI Agent** 的完整电商服务：同一套领域模型，同时提供 HTTP API、MCP 工具，以及顾客前台 / 商家后台。
+**30 seconds:** Open-source commerce where **customers**, **merchants**, and **AI agents** share one domain — HTTP + MCP (17 tools) + UI. Integer cents, `Idempotency-Key`, structured errors, three-role RBAC. Not a hosted SaaS and not a real payment processor (see [docs/product/POSITIONING.md](docs/product/POSITIONING.md)).
 
-## Docker 一条命令跑起来
-
-`docker-compose.yml` **不设**弱默认 `JWT_SECRET`；未设置时 compose / 容器拒绝启动。生产镜像默认 `ALLOW_DEMO_TOKENS=0`。
-
-```bash
-# 生成强随机 secret（必填），再起栈；数据落在 named volume → /app/data
-export JWT_SECRET="$(openssl rand -hex 32)"
-docker compose up --build -d
-
-# 本地需要演示 opaque Bearer 时再显式打开：
-# ALLOW_DEMO_TOKENS=1 docker compose up --build -d
-
-# 健康检查 + 烟雾（演示 token 仅在 ALLOW_DEMO_TOKENS=1 时可用）
-curl -sS http://127.0.0.1:8787/healthz
-curl -sS http://127.0.0.1:8787/   # Vite dist（API 同进程静态托管）
-
-docker compose down
-```
-
-未设 `JWT_SECRET` 时：
-
-```bash
-docker compose up
-# error: unset JWT_SECRET — e.g. export JWT_SECRET=$(openssl rand -hex 32)
-```
-
-- 镜像：多阶段构建（`npm ci` → frontend `build` + `build:server`）；运行时仅 `dist/` + `dist-server/` + `node_modules`（**无 apt**，不装 tini/wget）。
-- PID 1：compose 使用 `init: true`（等同 `docker run --init`）；healthcheck 用 Node `fetch('/healthz')`，不依赖 wget。
-- 持久化：`DATA_DIR=/app/data`（volume `commerce-data`）；SQLite 默认 `$DATA_DIR/commerce.sqlite`。
-- **生产必须设强随机 `JWT_SECRET`**（`openssl rand -hex 32`）；切勿使用历史默认 `dev-docker-change-me` / `agent-commerce-dev-jwt-secret`。
-- 演示 Bearer 仅在 `ALLOW_DEMO_TOKENS=1`（或非 production）时可用；compose 默认 **0**。
-
-### 网络受限时如何构建
-
-Runtime 阶段**不再调用 apt**，因此不会卡在 `deb.debian.org`。构建仍需要拉取基础镜像与 npm 包：
-
-```bash
-# 1) 基础镜像（如 Docker Hub / registry-1.docker.io 不可达，先配镜像加速或预先 pull）
-docker pull node:22-bookworm
-docker pull node:22-bookworm-slim
-
-# 2) npm  registry（可选）：构建前设镜像，或在本机 .npmrc 里写 registry=
-#    例：https://registry.npmmirror.com
-npm config set registry https://registry.npmmirror.com
-
-# 3) 构建（无 apt；不需要 --build-arg APT_MIRROR）
-docker build -t agent-commerce .
-# 或
-docker compose build
-```
-
-若仍必须在自定义 Debian 层里 `apt-get`，请自行换源后再装；本仓库默认镜像路径刻意避开 apt。
-
-## 快速开始（本地 npm）
+## 60-second run
 
 ```bash
 npm ci
-# 本地 E2E 需要 Chromium；CI 已在 workflow 里安装（playwright install --with-deps chromium）
-npx playwright install chromium
-npm test
-npm run build
-
-# 先编译后端到 dist-server/（server / mcp 脚本会自动 prebuild）
-npm run build:server
-
-# API（默认 :8787，写入 $DATA_DIR/commerce.sqlite，DATA_DIR 默认 ./data，并种子演示商品）
-# 若存在旧的 commerce.json 且 SQLite 为空，启动时自动导入一次
-# 非 production：未设 JWT_SECRET 时使用进程内随机 secret（不对外暴露）
-JWT_SECRET=dev-only-change-me npm run server
-# 例：DATA_DIR=/tmp/ac-data JWT_SECRET=dev-only-change-me npm run server
-
-# 顾客前台 + 商家后台（Vite :5173，代理 /api → API）
-# Vite 代理读 E2E_API_PORT（默认 8787）；E2E / 改端口时请与 API 的 PORT 对齐
-npm run dev
-# 打开 http://localhost:5173/ 与 http://localhost:5173/#/merchant
-
-# MCP stdio（同样跑编译产物；同样尊重 DATA_DIR）
-npm run mcp
+JWT_SECRET=dev-only-change-me npm run server   # API + static SPA → :8787
+# other terminal
+npm run dev                                    # Vite UI → :5173 (#/ customer, #/merchant)
 ```
 
-`DATA_DIR`（默认 `./data`）：HTTP / MCP / migrate 的存储根目录；未设 `DATA_PATH` 时 SQLite 为 `$DATA_DIR/commerce.sqlite`。`DATA_PATH` 仍可强制指定文件路径。
+Smoke:
 
-`E2E_API_PORT`：Vite 开发代理与 Playwright E2E 用它定位 API 源（默认 **8787**）。跑 `npm test` / `test:e2e` 时 Playwright 会自动解析空闲端口并注入；本地 `npm run server` + `npm run dev` 若 API 不在 8787，两边都要设同一值（例如 `E2E_API_PORT=8790 PORT=8790`）。
+```bash
+curl -sS http://127.0.0.1:8787/healthz
+curl -sS http://127.0.0.1:8787/.well-known/ai-commerce.json | head -c 120; echo
+```
 
-默认 E2E 与生产同构：给 API 进程传 **`DATA_DIR=<per-worker tmpdir>`**（SQLite），**不再**传 `DATA_PATH=*.json`。`GET /healthz` 的 `store` 字段应为 `sqlite`。遗留 JSON 后端由独立配置 `playwright.json-legacy.config.ts`（`STORE_BACKEND=json`）覆盖一条 spec。
+Docker (requires a strong secret; compose refuses unset `JWT_SECRET`; runtime image has **no apt/tini** — compose uses `init: true`):
 
-**生产部署必须设置 `JWT_SECRET`**（强随机值，例如 `openssl rand -hex 32`）。`NODE_ENV=production` 且未设置时进程**拒绝启动**并提示生成命令。切勿使用仓库历史中的 `agent-commerce-dev-jwt-secret` 或旧 compose 默认 `dev-docker-change-me`。
+```bash
+export JWT_SECRET="$(openssl rand -hex 32)"
+docker compose up --build -d
+curl -sS http://127.0.0.1:8787/healthz
+```
 
-演示 Bearer Token（仅当 `ALLOW_DEMO_TOKENS=1` 或 `NODE_ENV!=='production'`）：`customer-token` / `merchant-token` / `agent-token`（`agent:customer`）/ `agent-merchant-token`（`agent:merchant`）。生产 / compose 默认关闭；关闭时 `/.well-known/ai-commerce.json` 也不再列出这些凭据。
+MCP for agents:
 
-## 能力一览
+```bash
+JWT_SECRET=dev-only-change-me npm run mcp          # stdio
+# or: MCP_HTTP_PORT=8790 ALLOW_DEMO_TOKENS=1 npm run mcp:http
+```
 
-| 调用方 | 入口 |
-|--------|------|
-| 顾客 | Web UI · `/api/customer/*` |
-| 商家 | `#/merchant` · `/api/merchant/*` |
-| AI Agent | MCP（17 tools · sampling）· `/api/agent/*` · `/.well-known/ai-commerce.json` |
+Demo Bearer tokens (`customer-token` / `merchant-token` / `agent-token` / `agent-merchant-token`) only when `ALLOW_DEMO_TOKENS=1` or non-production — see `src/server/auth.ts`. Default Playwright E2E uses per-worker `DATA_DIR` (SQLite; `/healthz` → `store: "sqlite"`); JSON legacy is a separate config.
 
-约定：
+## Docs
 
-- 金额一律 **整数分（cents）**
-- 写操作必须带 **`Idempotency-Key`**
-- 错误体：`{ code, message, hint?, retryable }`
-- OpenAPI 3.1：`docs/openapi.json` / `GET /openapi.json`
+| Doc | What |
+|-----|------|
+| [docs/product/POSITIONING.md](docs/product/POSITIONING.md) | What it is / who / what it is **not** |
+| [docs/product/WHY-OPEN.md](docs/product/WHY-OPEN.md) | Open vs closed SaaS — code-cited |
+| [docs/product/COMPARISON.md](docs/product/COMPARISON.md) | vs closed SaaS vs greenfield (+ honest gaps) |
+| [docs/product/INTEGRATION.md](docs/product/INTEGRATION.md) | REST · MCP · merchant webhooks (runnable) |
+| [docs/API.md](docs/API.md) · [docs/openapi.json](docs/openapi.json) | HTTP contract |
+| [docs/MCP.md](docs/MCP.md) | Tools / resources / prompts |
+| [docs/AI-INTEGRATION.md](docs/AI-INTEGRATION.md) | Discovery, pagination, audit, rate limit |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layering & storage |
 
-## 文档
+## Develop
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — 分层、JSON 存储与 SQLite 升级路径
-- [API.md](docs/API.md) — HTTP 路由与鉴权
-- [MCP.md](docs/MCP.md) — 工具 / resources / prompts 与客户端配置
-- [AI-INTEGRATION.md](docs/AI-INTEGRATION.md) — 能力发现、分页、审计、限流
-- [ISSUES-legacy.md](docs/history/ISSUES-legacy.md) — 历史压测负载定义（已不适用；原根目录 `ISSUES.md`）
+| Command | Role |
+|---------|------|
+| `npm test` | Vitest + Playwright (SQLite e2e + JSON legacy) |
+| `npm run typecheck` / `build` / `build:server` | Frontend + `dist-server/` |
+| `npm run openapi:check` | OpenAPI drift gate |
+| `npm run test:mcp:http` | Streamable HTTP real-client smoke |
 
-## 脚本
-
-| 命令 | 作用 |
-|------|------|
-| `npm run test:unit` | Vitest only（`vitest run`） |
-| `npm run test:e2e` | Playwright E2E（默认 SQLite `DATA_DIR`；另跑 1 条 JSON legacy；需 Chromium） |
-| `npm test` | `vitest run` + Playwright SQLite e2e + JSON legacy e2e |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run build` | typecheck + Vite build |
-| `npm run openapi` | 重新生成 `docs/openapi.json` |
-| `npm run openapi:check` | 校验已提交的 OpenAPI 与生成结果一致 |
-| `npm run server` | HTTP API |
-| `npm run mcp` / `mcp:http` | MCP stdio / Streamable HTTP |
-| `npm run test:mcp:http` | Real-client Streamable HTTP smoke (`Client` + `StreamableHTTPClientTransport`) |
-| `npm run migrate` | 对 SQLite 跑 schema migration；可选从 JSON 导入 |
-
-## 技术栈
-
-TypeScript strict · Node 22 · zod · Vitest · React 18 · Vite · `@modelcontextprotocol/sdk` · `node:sqlite` 仓储（可回退 JSON）。
+Stack: TypeScript strict · Node 22 · zod · Vitest · React 18 · Vite · `@modelcontextprotocol/sdk` · `node:sqlite`.
