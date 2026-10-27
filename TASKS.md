@@ -20,7 +20,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-17 | NL order parse qty/query (#652) | Done | #657 @ `d585882`; parseNlIntent CN/EN qty + clean query; 31 files / 159 unit + 3 e2e |
 | ACP-16 | Product list always `{items,nextCursor}` (#651) | Done | #663 @ `5c59dca`; always page envelope + OpenAPI limit/cursor; 33 files / 176 unit + 3 e2e |
 | ACP-18 | README test/E2E docs | Done | #656 @ `b205bff`; scripts table + playwright install + `E2E_API_PORT` |
-| ACP-19 | Fail-closed JWT_SECRET + demo token gate (#654) | In progress | No hardcoded JWT secret; demos only with `ALLOW_DEMO_TOKENS=1` or non-production; well-known omits tokens when off |
+| ACP-19 | Fail-closed JWT_SECRET + demo token gate (#654) | Done | #660 @ `8049d2c`; fail-closed JWT_SECRET; gated demos; forged legacy secret → 401; 33 files / 183 unit + 3 e2e |
 | ACP-20 | Agent product list `available` | Done | #662 @ `fef4a7d`; batch stock + OpenAPI `available` + 409 on OOS add |
 
 ## Rules
