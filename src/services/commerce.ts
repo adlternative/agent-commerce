@@ -8,8 +8,8 @@ import {
   resolveIdempotency,
 } from '../domain/idempotency.js'
 import {
-  UpsertProductInputSchema,
   parseProduct,
+  parseUpsertProductInput,
   searchProducts,
   type Product,
   type UpsertProductInput,
@@ -139,9 +139,9 @@ export class CommerceService {
   async upsertProduct(
     input: UpsertProductInput,
     idempotencyKey: string,
-  ): Promise<Product> {
+  ): Promise<Product & StockLevel & { available: number }> {
     const key = requireIdempotencyKey(idempotencyKey)
-    const parsed = UpsertProductInputSchema.parse(input)
+    const parsed = parseUpsertProductInput(input)
     const requestHash = hashRequest(parsed)
 
     return this.repo.transaction((db) => {
@@ -149,12 +149,16 @@ export class CommerceService {
       const existing = db.idempotency.find((r) => r.key === key && r.scope === scope)
       const resolved = resolveIdempotency(existing, key, scope, requestHash)
       if (resolved.replay) {
-        return findProduct(db.products, resolved.resourceId)
+        const product = findProduct(db.products, resolved.resourceId)
+        const stock = findStock(db.stock, product.id)
+        return { ...product, ...stock, available: availableQty(stock) }
       }
 
       const now = new Date().toISOString()
       const bySku = db.products.find((p) => p.sku === parsed.sku)
       let product: Product
+      // Exclude stock from product field merge — inventory is applied separately.
+      const { stock: initialStock, ...productFields } = parsed
 
       if (parsed.id || bySku) {
         const target = parsed.id
@@ -162,12 +166,25 @@ export class CommerceService {
           : bySku!
         product = parseProduct({
           ...target,
-          ...parsed,
+          ...productFields,
           id: target.id,
           updatedAt: now,
         })
         const idx = db.products.findIndex((p) => p.id === product.id)
         db.products[idx] = product
+        if (initialStock !== undefined) {
+          const current = findStock(db.stock, product.id)
+          if (initialStock < current.reserved) {
+            throw new DomainError('INVALID_ADJUSTMENT', 'onHand cannot fall below reserved', {
+              hint: `onHand would be ${initialStock}, reserved=${current.reserved}`,
+            })
+          }
+          upsertStock(db.stock, {
+            productId: product.id,
+            onHand: initialStock,
+            reserved: current.reserved,
+          })
+        }
       } else {
         product = parseProduct({
           id: newId('prod'),
@@ -182,7 +199,11 @@ export class CommerceService {
           updatedAt: now,
         })
         db.products.push(product)
-        db.stock.push({ productId: product.id, onHand: 0, reserved: 0 })
+        db.stock.push({
+          productId: product.id,
+          onHand: initialStock ?? 0,
+          reserved: 0,
+        })
       }
 
       db.idempotency.push(
@@ -193,7 +214,8 @@ export class CommerceService {
           requestHash,
         }),
       )
-      return product
+      const stock = findStock(db.stock, product.id)
+      return { ...product, ...stock, available: availableQty(stock) }
     })
   }
 

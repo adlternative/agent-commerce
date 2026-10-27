@@ -8,6 +8,7 @@ import { DomainError, isDomainError, type ErrorBody } from '../domain/errors.js'
 export function mcpErrorCodeForDomain(code: string): ErrorCode {
   switch (code) {
     case 'VALIDATION_ERROR':
+    case 'UNKNOWN_FIELD':
     case 'INVALID_JSON':
     case 'INVALID_CENTS':
     case 'INVALID_QUANTITY':

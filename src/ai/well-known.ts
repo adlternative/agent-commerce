@@ -94,6 +94,7 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
       'UNAUTHORIZED',
       'FORBIDDEN',
       'VALIDATION_ERROR',
+      'UNKNOWN_FIELD',
       'IDEMPOTENCY_KEY_REQUIRED',
       'IDEMPOTENCY_KEY_REUSE',
       'INSUFFICIENT_STOCK',
