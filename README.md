@@ -6,6 +6,8 @@
 
 ```bash
 npm ci
+# 本地 E2E 需要 Chromium；CI 已在 workflow 里安装（playwright install --with-deps chromium）
+npx playwright install chromium
 npm test
 npm run build
 
@@ -16,13 +18,16 @@ npm run build:server
 # 若存在旧的 data/commerce.json 且 SQLite 为空，启动时自动导入一次
 npm run server
 
-# 顾客前台 + 商家后台（Vite :5173，代理 /api → :8787）
+# 顾客前台 + 商家后台（Vite :5173，代理 /api → API）
+# Vite 代理读 E2E_API_PORT（默认 8787）；E2E / 改端口时请与 API 的 PORT 对齐
 npm run dev
 # 打开 http://localhost:5173/ 与 http://localhost:5173/#/merchant
 
 # MCP stdio（同样跑编译产物）
 npm run mcp
 ```
+
+`E2E_API_PORT`：Vite 开发代理与 Playwright E2E 用它定位 API 源（默认 **8787**）。跑 `npm test` / `test:e2e` 时 Playwright 会自动解析空闲端口并注入；本地 `npm run server` + `npm run dev` 若 API 不在 8787，两边都要设同一值（例如 `E2E_API_PORT=8790 PORT=8790`）。
 
 演示 Bearer Token：`customer-token` / `merchant-token` / `agent-token`（`agent:customer`）/ `agent-merchant-token`（`agent:merchant`）。
 
@@ -52,7 +57,9 @@ npm run mcp
 
 | 命令 | 作用 |
 |------|------|
-| `npm test` | Vitest |
+| `npm run test:unit` | Vitest only（`vitest run`） |
+| `npm run test:e2e` | Playwright E2E（需先 `npx playwright install chromium`） |
+| `npm test` | `vitest run && playwright test`（unit + e2e） |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | typecheck + Vite build |
 | `npm run openapi` | 重新生成 `docs/openapi.json` |

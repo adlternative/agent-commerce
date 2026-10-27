@@ -16,6 +16,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | W9-2 | Metrics path cardinality cap | In progress | Unmatched → path="<unmatched>"; templates for params; cardinality ≤ 3 |
 | W9-3 | Agent scope split | Done | #646 @ `3fcd5e7`; `agent:customer`/`agent:merchant`; no implicit merchant; 31 files / 151 unit + 2 e2e |
 | W9-4 | Playwright free port | Done | #643 @ `7e0d94d`; Prefer `PW_PORT` / auto-pick when occupied; `reuseExistingServer: false`; 31 files / 149 unit + 2 e2e |
+| ACP-18 | README test/E2E docs | In progress | [#653](https://github.com/adlternative/agent-commerce/issues/653); scripts table + playwright install + `E2E_API_PORT` |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.
