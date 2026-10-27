@@ -137,6 +137,39 @@ describe('MCP tool handlers', () => {
     expect(JSON.parse(listed.content[0]!.text)).toEqual([])
   })
 
+  it('rejects customer actor on merchant tools; allows merchant', async () => {
+    const { commerce } = await seeded()
+    const customer = { role: 'customer' as const, subject: 'cust_rbac' }
+    const denied = await callTool(
+      commerce,
+      'upsert_product',
+      {
+        sku: 'DENY-1',
+        name: 'Denied',
+        priceCents: 100,
+        idempotencyKey: 'deny-up-1',
+      },
+      { actor: customer },
+    )
+    expect(denied).toMatchObject({ isError: true })
+    expect(JSON.parse(denied.content[0]!.text).code).toBe('FORBIDDEN')
+
+    const merchant = { role: 'merchant' as const, subject: 'merch_rbac' }
+    const ok = await callTool(
+      commerce,
+      'upsert_product',
+      {
+        sku: 'ALLOW-1',
+        name: 'Allowed',
+        priceCents: 100,
+        idempotencyKey: 'allow-up-1',
+      },
+      { actor: merchant },
+    )
+    expect(ok).not.toMatchObject({ isError: true })
+    expect(JSON.parse(ok.content[0]!.text).sku).toBe('ALLOW-1')
+  })
+
   it('request_return refunds a paid order', async () => {
     const { commerce, product } = await seeded()
     const cartRes = await callTool(commerce, 'create_cart', {

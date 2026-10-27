@@ -25,13 +25,13 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 
 const url = new URL(process.env.MCP_HTTP_URL ?? 'http://127.0.0.1:8790/')
 
-// Auth headers travel on every request via requestInit (Bearer JWT and/or API key).
-// This demo HTTP transport accepts them; wire verification when you front MCP with a gateway.
+// Auth is required on every POST (same schemes as REST).
+// Prefer one credential: Bearer opaque/JWT, or X-API-Key / Authorization: ApiKey.
 const transport = new StreamableHTTPClientTransport(url, {
   requestInit: {
     headers: {
-      Authorization: `Bearer ${process.env.MCP_TOKEN ?? ''}`,
-      'X-API-Key': process.env.MCP_API_KEY ?? '',
+      Authorization: `Bearer ${process.env.MCP_TOKEN ?? 'merchant-token'}`,
+      // Or: 'X-API-Key': process.env.MCP_API_KEY ?? 'merchant-key',
     },
   },
 })
@@ -46,10 +46,25 @@ const search = await client.callTool({
 })
 ```
 
+### Streamable HTTP authentication
+
+MCP HTTP reuses REST auth (`src/server/auth.ts` via `buildAuthConfig()`):
+
+| Header | Examples |
+|--------|----------|
+| `Authorization: Bearer <token\|jwt>` | `customer-token`, `merchant-token`, HS256 JWT (`JWT_SECRET`) |
+| `X-API-Key` / `Authorization: ApiKey <key>` | `customer-key`, `merchant-key` |
+
+Rules:
+
+- **No credential** → HTTP **401** JSON-RPC error (`UNAUTHORIZED`); `tools/list` and `tools/call` return no data.
+- **Demo tokens/keys** only when `ALLOW_DEMO_TOKENS=1` or `NODE_ENV !== production` (same fail-closed gate as REST).
+- **Tool RBAC:** `upsert_product`, `adjust_stock`, and `list_orders` require `merchant` or `agent:merchant`. A `customer` caller gets a tool error with `FORBIDDEN`.
+
 Transport choice:
 
-- **stdio** — subprocess, no HTTP auth headers; use env / process identity.
-- **Streamable HTTP** — pass credentials in `requestInit.headers` as above (`Authorization`, `X-API-Key`, or both).
+- **stdio** — subprocess, no HTTP auth headers; use env / process identity (local IDE hosts).
+- **Streamable HTTP** — always pass credentials in `requestInit.headers` as above.
 
 ## Tools (17)
 

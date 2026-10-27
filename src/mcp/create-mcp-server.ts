@@ -1,5 +1,6 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CommerceService } from '../services/commerce.js'
+import type { Actor } from '../server/auth.js'
 import { toMcpError } from './errors.js'
 import {
   merchantOpsPrompt,
@@ -21,7 +22,15 @@ import {
   type ToolName,
 } from './tools.js'
 
-export function createMcpServer(commerce: CommerceService): McpServer {
+export type CreateMcpServerOptions = {
+  /** Authenticated actor from the HTTP transport; enables tool-level RBAC. */
+  actor?: Actor
+}
+
+export function createMcpServer(
+  commerce: CommerceService,
+  options: CreateMcpServerOptions = {},
+): McpServer {
   const server = new McpServer(
     {
       name: 'agent-commerce',
@@ -41,7 +50,8 @@ export function createMcpServer(commerce: CommerceService): McpServer {
         description: TOOL_DESCRIPTIONS[name],
         inputSchema: ToolSchemas[name],
       },
-      async (args: unknown) => callTool(commerce, name, args),
+      async (args: unknown) =>
+        callTool(commerce, name, args, { actor: options.actor }),
     )
   }
 
