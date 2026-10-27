@@ -36,6 +36,9 @@ export default defineConfig({
         E2E_WEB_PORT: String(webPort),
         E2E_API_PORT: String(apiPort),
         PW_PORT: String(webPort),
+        // Fail-closed auth: e2e uses demo bearer tokens against `npm run server`.
+        JWT_SECRET: process.env.JWT_SECRET || 'agent-commerce-e2e-jwt-secret',
+        ALLOW_DEMO_TOKENS: '1',
       },
     },
     {

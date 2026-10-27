@@ -16,6 +16,11 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run typecheck
       - run: npm run build:server
-      - run: npm test
+      - name: npm test
+        env:
+          # Fail-closed JWT: smoke/e2e spawn the compiled server and use demo tokens.
+          JWT_SECRET: agent-commerce-ci-jwt-secret
+          ALLOW_DEMO_TOKENS: '1'
+        run: npm test
       - run: npm run openapi:check
       - run: npm run build
