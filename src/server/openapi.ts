@@ -681,6 +681,15 @@ export function buildOpenApi() {
         },
       }),
       '/api/merchant/promotions': pathItem({
+        get: {
+          summary: 'List promotions',
+          tags: ['merchant'],
+          security: bearer,
+          responses: ok({
+            type: 'array',
+            items: { $ref: '#/components/schemas/Promotion' },
+          }),
+        },
         post: {
           summary: 'Upsert promotion (threshold / percent / fixed; amounts in cents)',
           tags: ['merchant'],

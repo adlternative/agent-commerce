@@ -290,6 +290,10 @@ export function registerRoutes(
     },
   )
 
+  router.on('GET', '/api/merchant/promotions', ['merchant', 'agent:merchant'], async () => {
+    return commerce.listPromotions()
+  })
+
   router.on('POST', '/api/merchant/promotions', ['merchant', 'agent:merchant'], async (ctx) => {
     const body = PromotionSchema.parse(ctx.body)
     return commerce.upsertPromotion(body, requireKey(ctx.idempotencyKey))

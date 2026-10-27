@@ -451,6 +451,11 @@ export class CommerceService {
     return quoteCart(cart, promo)
   }
 
+  async listPromotions(): Promise<Promotion[]> {
+    const db = await this.repo.read()
+    return [...db.promotions]
+  }
+
   async upsertPromotion(promo: Promotion, idempotencyKey: string): Promise<Promotion> {
     const key = requireIdempotencyKey(idempotencyKey)
     const requestHash = hashRequest(promo)

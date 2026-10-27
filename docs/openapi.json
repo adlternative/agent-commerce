@@ -2791,6 +2791,42 @@
       }
     },
     "/api/merchant/promotions": {
+      "get": {
+        "summary": "List promotions",
+        "tags": [
+          "merchant"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Promotion"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "summary": "Upsert promotion (threshold / percent / fixed; amounts in cents)",
         "tags": [
