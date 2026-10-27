@@ -13,6 +13,7 @@ Lightweight ADRs for Agent Commerce. Each record captures **Context**, **Decisio
 | [0005](./0005-integer-cents.md) | Integer cents for money | Accepted |
 | [0006](./0006-e2e-isomorphic-with-prod.md) | E2E isomorphic with production store | Accepted (landed [#679](https://github.com/adlternative/agent-commerce/pull/679) / [#677](https://github.com/adlternative/agent-commerce/issues/677); `playwright.config.ts` defaults to SQLite) |
 | [0007](./0007-vitepress-docs-site.md) | VitePress for previewable docs site | Accepted |
+| [0008](./0008-pwa-first-mobile.md) | PWA-first mobile (defer Expo / React Native) | Accepted |
 
 ## Template
 
@@ -41,4 +42,4 @@ Positive and negative outcomes; operational constraints.
 Options considered and why they were rejected.
 ```
 
-Number ADRs monotonically (`0008-…` next). Link new records from this index table.
+Number ADRs monotonically (`0009-…` next). Link new records from this index table.
