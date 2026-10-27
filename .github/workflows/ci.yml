@@ -26,3 +26,10 @@ jobs:
         run: npm run test:mcp:http
       - run: npm run openapi:check
       - run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker build smoke
+        run: docker build -t agent-commerce:ci .

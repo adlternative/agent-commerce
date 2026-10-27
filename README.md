@@ -28,10 +28,32 @@ docker compose up
 # error: unset JWT_SECRET — e.g. export JWT_SECRET=$(openssl rand -hex 32)
 ```
 
-- 镜像：多阶段构建（`npm ci` → frontend `build` + `build:server`）；运行时仅 `dist/` + `dist-server/` + `node_modules` + **tini**。
+- 镜像：多阶段构建（`npm ci` → frontend `build` + `build:server`）；运行时仅 `dist/` + `dist-server/` + `node_modules`（**无 apt**，不装 tini/wget）。
+- PID 1：compose 使用 `init: true`（等同 `docker run --init`）；healthcheck 用 Node `fetch('/healthz')`，不依赖 wget。
 - 持久化：`DATA_DIR=/app/data`（volume `commerce-data`）；SQLite 默认 `$DATA_DIR/commerce.sqlite`。
 - **生产必须设强随机 `JWT_SECRET`**（`openssl rand -hex 32`）；切勿使用历史默认 `dev-docker-change-me` / `agent-commerce-dev-jwt-secret`。
 - 演示 Bearer 仅在 `ALLOW_DEMO_TOKENS=1`（或非 production）时可用；compose 默认 **0**。
+
+### 网络受限时如何构建
+
+Runtime 阶段**不再调用 apt**，因此不会卡在 `deb.debian.org`。构建仍需要拉取基础镜像与 npm 包：
+
+```bash
+# 1) 基础镜像（如 Docker Hub / registry-1.docker.io 不可达，先配镜像加速或预先 pull）
+docker pull node:22-bookworm
+docker pull node:22-bookworm-slim
+
+# 2) npm  registry（可选）：构建前设镜像，或在本机 .npmrc 里写 registry=
+#    例：https://registry.npmmirror.com
+npm config set registry https://registry.npmmirror.com
+
+# 3) 构建（无 apt；不需要 --build-arg APT_MIRROR）
+docker build -t agent-commerce .
+# 或
+docker compose build
+```
+
+若仍必须在自定义 Debian 层里 `apt-get`，请自行换源后再装；本仓库默认镜像路径刻意避开 apt。
 
 ## 快速开始（本地 npm）
 

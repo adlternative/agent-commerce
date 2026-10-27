@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
-# Multi-stage: build frontend + dist-server; runtime ships only dist, dist-server, node_modules, tini.
+# Multi-stage: build frontend + dist-server; runtime ships only dist, dist-server, node_modules.
+# No apt in either stage — avoids deb.debian.org hangs on restricted networks.
+# PID 1 reaping: use compose `init: true` (or docker run --init), not tini via apt.
 
 FROM node:22-bookworm AS build
 WORKDIR /app
@@ -10,10 +12,6 @@ RUN npm run build && npm run build:server \
   && npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends tini wget ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
@@ -30,5 +28,4 @@ ENV NODE_ENV=production \
 VOLUME ["/app/data"]
 EXPOSE 8787
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "dist-server/server/index.js"]
