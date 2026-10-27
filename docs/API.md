@@ -44,7 +44,7 @@ Writes require header **`Idempotency-Key`**. Errors:
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/metrics` | GMV / orders / OOS |
-| GET | `/products` | `activeOnly=false` for all |
+| GET | `/products` | `activeOnly=false` for all; optional `cursor`/`limit` → `{items,nextCursor}` |
 | POST | `/products` | upsert |
 | PUT | `/products/:id` | upsert by id |
 | POST | `/products/:id/stock` | `{ delta }` |
@@ -93,10 +93,12 @@ Unmatched routes return **`404`** with `{ "code": "NOT_FOUND", ... }` (auth is n
 
 ## Cursor pagination
 
-Pass `?limit=20&cursor=<opaque>`. Response when paging:
+Product lists (`GET /api/customer/products`, `/api/agent/products`, `/api/merchant/products`) **always** return:
 
 ```json
-{ "items": [], "nextCursor": "...", "hasMore": true }
+{ "items": [], "nextCursor": null, "hasMore": false }
 ```
 
-Product search cursors are **stable keysets** (`score`, `id`) over ranked results (FTS with Chinese character fallback; `agentNotes` participates in ranking). Merchant order lists still use opaque offset cursors.
+Omit `limit`/`cursor` to get the full match set (`nextCursor` null). Pass `?limit=20&cursor=<opaque>` (limit 1–100, default 20 when paging) for pages.
+
+Product search cursors are **stable keysets** (`score`, `id`) over ranked results (FTS with Chinese character fallback; `agentNotes` participates in ranking). Merchant product/order lists use opaque offset cursors.

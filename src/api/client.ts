@@ -57,8 +57,13 @@ export function createApi(config: ApiConfig) {
 
   return {
     newKey,
-    listProducts: (q?: string) =>
-      request<Product[]>('GET', `/api/customer/products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+    listProducts: async (q?: string) => {
+      const page = await request<{ items: Product[] }>(
+        'GET',
+        `/api/customer/products${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+      )
+      return page.items
+    },
     getProduct: (id: string) => request<Product>('GET', `/api/customer/products/${id}`),
     checkInventory: (productId: string) =>
       request<Stock>('GET', `/api/customer/inventory/${productId}`),
@@ -90,10 +95,14 @@ export function createApi(config: ApiConfig) {
     getOrder: (orderId: string) => request<Order>('GET', `/api/customer/orders/${orderId}`),
     /** Agent surface — same commerce service, used by the NL panel. */
     agent: {
-      listProducts: (q?: string) =>
-        request<Product[]>('GET', `/api/agent/products${q ? `?q=${encodeURIComponent(q)}` : ''}`, {
-          token: 'agent-token',
-        }),
+      listProducts: async (q?: string) => {
+        const page = await request<{ items: Product[] }>(
+          'GET',
+          `/api/agent/products${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+          { token: 'agent-token' },
+        )
+        return page.items
+      },
       createCart: () =>
         request<Cart>('POST', '/api/agent/carts', {
           token: 'agent-token',

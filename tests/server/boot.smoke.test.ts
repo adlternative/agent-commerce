@@ -93,22 +93,24 @@ describe('compiled server boot smoke', () => {
     expect(doc.http.agent.length).toBeGreaterThan(0)
   })
 
-  it('lists customer products as an array', async () => {
+  it('lists customer products as { items, nextCursor }', async () => {
     const res = await fetch(`${baseUrl}/api/customer/products`, {
       headers: { authorization: 'Bearer customer-token' },
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as unknown
-    expect(Array.isArray(body)).toBe(true)
-    expect((body as unknown[]).length).toBeGreaterThan(0)
+    const body = (await res.json()) as { items: unknown[]; nextCursor: string | null; hasMore: boolean }
+    expect(Array.isArray(body.items)).toBe(true)
+    expect(body.items.length).toBeGreaterThan(0)
+    expect(body.nextCursor).toBeNull()
+    expect(body.hasMore).toBe(false)
   })
 
   it('places order and replays same Idempotency-Key to same order id', async () => {
     const productsRes = await fetch(`${baseUrl}/api/customer/products`, {
       headers: { authorization: 'Bearer customer-token' },
     })
-    const products = (await productsRes.json()) as { id: string }[]
-    const productId = products[0]!.id
+    const page = (await productsRes.json()) as { items: { id: string }[] }
+    const productId = page.items[0]!.id
 
     const cartRes = await fetch(`${baseUrl}/api/customer/carts`, {
       method: 'POST',

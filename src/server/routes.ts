@@ -30,7 +30,22 @@ function pageProducts<T extends { id: string }>(
       },
     )
   }
-  return ranked.map((h) => h.product)
+  // No limit/cursor → full result set, same envelope as paged responses.
+  return {
+    items: ranked.map((h) => h.product),
+    nextCursor: null,
+    hasMore: false,
+  }
+}
+
+function pageList<T>(items: readonly T[], query: URLSearchParams) {
+  if (query.has('cursor') || query.has('limit')) {
+    return paginate(items, {
+      cursor: query.get('cursor'),
+      limit: query.get('limit') ? Number(query.get('limit')) : undefined,
+    })
+  }
+  return { items: [...items], nextCursor: null, hasMore: false }
 }
 
 function requireKey(key: string | undefined): string {
@@ -170,11 +185,12 @@ export function registerRoutes(
   })
 
   router.on('GET', '/api/merchant/products', ['merchant', 'agent:merchant'], async (ctx) => {
-    return commerce.listProducts({
+    const products = await commerce.listProducts({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
       activeOnly: ctx.query.get('activeOnly') !== 'false' ? true : false,
     })
+    return pageList(products, ctx.query)
   })
 
   router.on('GET', '/api/merchant/inventory/:productId', ['merchant', 'agent:merchant'], async (ctx) => {
