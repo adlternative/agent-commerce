@@ -16,6 +16,19 @@ import { HttpMetrics } from './metrics.js'
 
 export type RouteHandler = (ctx: RequestContext) => Promise<unknown> | unknown
 
+/**
+ * Builtin public routes handled inside `Router.handle` (not via `routes.ts`).
+ * Kept as the single source so OpenAPI reverse coverage cannot miss them.
+ */
+export const PUBLIC_BUILTIN_ROUTES: ReadonlyArray<{ method: HttpMethod; path: string }> = [
+  { method: 'GET', path: '/health' },
+  { method: 'GET', path: '/healthz' },
+  { method: 'GET', path: '/readyz' },
+  { method: 'GET', path: '/metrics' },
+  { method: 'GET', path: '/.well-known/ai-commerce.json' },
+  { method: 'GET', path: '/openapi.json' },
+] as const
+
 export type AiAdapters = {
   rateLimit?: TokenBucket
   audit?: AuditLog
@@ -138,9 +151,16 @@ export class Router {
     return this.metrics
   }
 
-  /** Registered API route templates (excludes public /health, /metrics, …). */
+  /**
+   * Full live route registry: builtin public probes/docs handled in `handle()`
+   * plus every `router.on(...)` registration (from `registerRoutes` and elsewhere).
+   * OpenAPI reverse coverage must use this — do not scan `routes.ts` alone.
+   */
   listRoutes(): Array<{ method: HttpMethod; path: string }> {
-    return this.routes.map((r) => ({ method: r.method, path: r.pathTemplate }))
+    return [
+      ...PUBLIC_BUILTIN_ROUTES.map((r) => ({ ...r })),
+      ...this.routes.map((r) => ({ method: r.method, path: r.pathTemplate })),
+    ]
   }
 
   setOpenApiProvider(fn: () => unknown): void {

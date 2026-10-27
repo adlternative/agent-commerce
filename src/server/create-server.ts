@@ -106,3 +106,14 @@ export function createAppServer(opts: CreateServerOptions = {}): AppServer {
 }
 
 export { MemoryRepository, JsonFileRepository, buildOpenApi }
+
+/**
+ * Live method+path registry after the same wiring createAppServer uses
+ * (`registerRoutes` + Router builtins). Prefer this over scanning source files.
+ */
+export function listLiveRoutes(
+  opts: CreateServerOptions = {},
+): Array<{ method: string; path: string }> {
+  const app = createAppServer({ ...opts, seedDemo: false })
+  return app.router.listRoutes()
+}
