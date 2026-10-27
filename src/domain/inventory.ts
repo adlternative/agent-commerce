@@ -74,6 +74,36 @@ export function batchAvailableByProductIds(
   return byId
 }
 
+export type StockSnapshot = StockLevel & { available: number }
+
+/**
+ * Batch onHand / reserved / available for many products in one pass (no N+1).
+ * Missing stock rows map to zeros. Callers should load stock once via
+ * `getStockByProductIds` (`WHERE product_id IN (...)`).
+ */
+export function batchStockByProductIds(
+  stock: readonly StockLevel[],
+  productIds: readonly string[],
+): Map<string, StockSnapshot> {
+  const want = new Set(productIds)
+  const byId = new Map<string, StockSnapshot>()
+  for (const row of stock) {
+    if (!want.has(row.productId)) continue
+    byId.set(row.productId, {
+      productId: row.productId,
+      onHand: row.onHand,
+      reserved: row.reserved,
+      available: availableQty(row),
+    })
+  }
+  for (const id of productIds) {
+    if (!byId.has(id)) {
+      byId.set(id, { productId: id, onHand: 0, reserved: 0, available: 0 })
+    }
+  }
+  return byId
+}
+
 /**
  * Pure reserve: increases reserved if available. Does not mutate input.
  * Caller must serialize concurrent calls (see InventoryLedger).

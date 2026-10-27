@@ -4,6 +4,7 @@ import {
   adjustOnHand,
   availableQty,
   batchAvailableByProductIds,
+  batchStockByProductIds,
   commitStock,
   createReservation,
   DEFAULT_RESERVATION_TTL_MS,
@@ -32,6 +33,32 @@ describe('inventory pure ops', () => {
     expect(map.get('c')).toBe(2)
     expect(map.get('missing')).toBe(0)
     expect(map.size).toBe(4)
+  })
+
+  it('batchStockByProductIds returns onHand/reserved/available in one pass', () => {
+    const stock = [
+      { productId: 'a', onHand: 5, reserved: 2 },
+      { productId: 'b', onHand: 0, reserved: 0 },
+    ]
+    const map = batchStockByProductIds(stock, ['a', 'b', 'missing'])
+    expect(map.get('a')).toEqual({
+      productId: 'a',
+      onHand: 5,
+      reserved: 2,
+      available: 3,
+    })
+    expect(map.get('b')).toEqual({
+      productId: 'b',
+      onHand: 0,
+      reserved: 0,
+      available: 0,
+    })
+    expect(map.get('missing')).toEqual({
+      productId: 'missing',
+      onHand: 0,
+      reserved: 0,
+      available: 0,
+    })
   })
 
   it('reserves without mutating input', () => {

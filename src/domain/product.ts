@@ -20,17 +20,35 @@ export const ProductSchema = z.object({
 export type Product = z.infer<typeof ProductSchema>
 
 /**
- * List responses may include sellable qty. Optional so get-by-id / upsert stay valid.
+ * List responses may include inventory fields. Optional so get-by-id / upsert stay valid.
  * `available > 0` ⇒ sellable; add-to-cart at 0 ⇒ 409 INSUFFICIENT_STOCK.
+ * Merchant list (`GET /api/merchant/products`) includes onHand, reserved, and available.
+ * Agent/customer lists include available only.
  */
 export const ProductWithOptionalAvailableSchema = ProductSchema.extend({
+  onHand: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'Units physically on hand. Present on GET /api/merchant/products list items.',
+    ),
+  reserved: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'Units held for unpaid/open orders. Present on GET /api/merchant/products list items.',
+    ),
   available: z
     .number()
     .int()
     .nonnegative()
     .optional()
     .describe(
-      'Sellable units (onHand − reserved). Present on GET /api/agent/products and GET /api/customer/products list items.',
+      'Sellable units (onHand − reserved). Present on GET /api/agent/products, GET /api/customer/products, and GET /api/merchant/products list items.',
     ),
 })
 

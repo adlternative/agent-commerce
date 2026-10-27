@@ -59,10 +59,20 @@ export default function MerchantApp() {
         setOrders(o)
         setReturns(r)
         setPromotions(promos)
-        const stockEntries = await Promise.all(
-          p.map(async (prod) => [prod.id, await api.inventory(prod.id)] as const),
+        // Stock columns come from the list response (onHand/reserved/available) — no N+1 inventory GETs.
+        setStocks(
+          Object.fromEntries(
+            p.map((prod) => [
+              prod.id,
+              {
+                productId: prod.id,
+                onHand: prod.onHand ?? 0,
+                reserved: prod.reserved ?? 0,
+                available: prod.available ?? 0,
+              },
+            ]),
+          ),
         )
-        setStocks(Object.fromEntries(stockEntries))
         return
       } catch (e) {
         lastErr = e
@@ -320,8 +330,12 @@ export default function MerchantApp() {
             <li key={p.id} className="merchant-row">
               <div>
                 <strong>{p.name}</strong> · {p.sku} · {formatCents(p.priceCents)}
-                <div className="muted">
-                  库存可用 {stocks[p.id]?.available ?? '—'} / onHand {stocks[p.id]?.onHand ?? '—'}
+                <div className="muted" data-testid="merchant-stock">
+                  库存可用 {stocks[p.id]?.available ?? p.available ?? '—'} / onHand{' '}
+                  {stocks[p.id]?.onHand ?? p.onHand ?? '—'}
+                  {stocks[p.id]?.reserved != null || p.reserved != null
+                    ? ` / reserved ${stocks[p.id]?.reserved ?? p.reserved}`
+                    : ''}
                 </div>
               </div>
               <div className="row-actions">

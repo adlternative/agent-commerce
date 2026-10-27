@@ -186,7 +186,8 @@ export function registerRoutes(
   })
 
   router.on('GET', '/api/merchant/products', ['merchant', 'agent:merchant'], async (ctx) => {
-    const products = await commerce.listProducts({
+    // Batch stock (WHERE product_id IN (...)) — items include onHand/reserved/available.
+    const products = await commerce.listProductsWithStock({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
       activeOnly: ctx.query.get('activeOnly') !== 'false' ? true : false,

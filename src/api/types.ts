@@ -7,6 +7,10 @@ export type Product = {
   tags: string[]
   agentNotes: string
   active: boolean
+  /** Units on hand — present on merchant product list. */
+  onHand?: number
+  /** Units reserved — present on merchant product list. */
+  reserved?: number
   /** Sellable units on list responses (onHand − reserved). */
   available?: number
 }
