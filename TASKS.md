@@ -23,7 +23,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-19 | Fail-closed JWT_SECRET + demo token gate (#654) | Done | #660 @ `8049d2c`; fail-closed JWT_SECRET; gated demos; forged legacy secret → 401; 33 files / 183 unit + 3 e2e |
 | ACP-20 | Agent product list `available` | Done | #662 @ `fef4a7d`; batch stock + OpenAPI `available` + 409 on OOS add |
 | ACP-21 | Docker + configurable `DATA_DIR` | Done | #671 @ `0869e8f`; DATA_DIR+Docker; 35 files / 188 unit + 3 e2e |
-| ACP-23 | MCP Streamable HTTP real client smoke | In progress | Official SDK client vs `mcp:http`; `test:mcp:http` + CI; docs connect/auth |
+| ACP-23 | MCP Streamable HTTP real client smoke | Done | #669 @ `714503a`; SDK StreamableHTTP client smoke; `test:mcp:http` + CI; 36/189 + 3 e2e |
 | ACP-25 | Clean legacy skeleton issues #1–#8 | Done | #668 @ `c44c16a`; archive ISSUES.md; #1–#8 need user close (403); 33/183 + 3 e2e |
 | ACP-22 | Returns/refund UI + E2E | In progress | Customer 申请退货 (lines+reason); merchant approve/reject + restock; Playwright full chain |
 
