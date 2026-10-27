@@ -3,17 +3,19 @@ import type { CommerceRepository } from './types.js'
 import { JsonFileRepository } from './json-repository.js'
 import { SqliteRepository } from './sqlite-repository.js'
 import { migrateJsonToSqlite } from './migrate-json.js'
+import { resolveDataDir, resolveStorePath } from './data-dir.js'
 
 export type StoreBackend = 'sqlite' | 'json'
+export { resolveDataDir, resolveStorePath, defaultStorePath } from './data-dir.js'
 
 export type CreateRepositoryOptions = {
-  /** Explicit path; defaults depend on backend. */
+  /** Explicit path; defaults depend on backend / DATA_DIR / DATA_PATH. */
   dataPath?: string
   /** Override backend; default sqlite (or inferred from dataPath extension). */
   backend?: StoreBackend
   /**
    * When opening SQLite, if empty and this JSON path exists, import once.
-   * Default: sibling `commerce.json` next to the sqlite file, or `data/commerce.json`.
+   * Default: sibling `commerce.json` next to the sqlite file, or `$DATA_DIR/commerce.json`.
    */
   migrateFromJsonPath?: string
   /** Skip JSON→SQLite auto-import (tests). Default false. */
@@ -37,14 +39,8 @@ function inferBackend(dataPath: string | undefined, explicit?: StoreBackend): St
   return 'sqlite'
 }
 
-function defaultPath(backend: StoreBackend, cwd = process.cwd()): string {
-  return backend === 'json'
-    ? join(cwd, 'data', 'commerce.json')
-    : join(cwd, 'data', 'commerce.sqlite')
-}
-
 function defaultJsonSibling(sqlitePath: string): string {
-  if (sqlitePath === ':memory:') return join(process.cwd(), 'data', 'commerce.json')
+  if (sqlitePath === ':memory:') return join(resolveDataDir(), 'commerce.json')
   if (sqlitePath.endsWith('.sqlite')) return sqlitePath.replace(/\.sqlite$/i, '.json')
   if (sqlitePath.endsWith('.db')) return sqlitePath.replace(/\.db$/i, '.json')
   return join(dirnameOf(sqlitePath), 'commerce.json')
@@ -58,12 +54,18 @@ function dirnameOf(p: string): string {
 /**
  * Open the configured persistence backend. Prefer SQLite via node:sqlite.
  * Keeps JSON available when STORE_BACKEND=json or path ends with .json.
+ *
+ * Path resolution: `dataPath` → `DATA_PATH` → `$DATA_DIR/commerce.sqlite`
+ * (`DATA_DIR` defaults to `./data`).
  */
 export async function createRepository(
   opts: CreateRepositoryOptions = {},
 ): Promise<OpenedRepository> {
-  const backend = inferBackend(opts.dataPath, opts.backend)
-  const path = opts.dataPath ?? process.env.DATA_PATH ?? defaultPath(backend)
+  const backend = inferBackend(
+    opts.dataPath ?? process.env.DATA_PATH?.trim(),
+    opts.backend,
+  )
+  const path = resolveStorePath(backend, opts)
 
   if (backend === 'json') {
     return { repo: new JsonFileRepository(path), backend, path }

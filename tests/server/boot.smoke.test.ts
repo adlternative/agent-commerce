@@ -54,7 +54,9 @@ describe('compiled server boot smoke', () => {
       env: {
         ...process.env,
         PORT: String(port),
-        DATA_PATH: join(dataDir, 'commerce.json'),
+        DATA_DIR: dataDir,
+        DATA_PATH: '',
+        STORE_BACKEND: 'json',
         // Fail-closed auth: always set a test secret; enable demo opaque tokens for smoke.
         JWT_SECRET: process.env.JWT_SECRET || 'agent-commerce-boot-smoke-jwt-secret',
         ALLOW_DEMO_TOKENS: '1',

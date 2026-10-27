@@ -22,6 +22,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-18 | README test/E2E docs | Done | #656 @ `b205bff`; scripts table + playwright install + `E2E_API_PORT` |
 | ACP-19 | Fail-closed JWT_SECRET + demo token gate (#654) | Done | #660 @ `8049d2c`; fail-closed JWT_SECRET; gated demos; forged legacy secret → 401; 33 files / 183 unit + 3 e2e |
 | ACP-20 | Agent product list `available` | Done | #662 @ `fef4a7d`; batch stock + OpenAPI `available` + 409 on OOS add |
+| ACP-21 | Docker + configurable `DATA_DIR` | In progress | Multi-stage Dockerfile + compose volume `/app/data`; `DATA_DIR`→sqlite; static `dist` |
 | ACP-25 | Clean legacy skeleton issues #1–#8 | Done | #668 @ `c44c16a`; archive ISSUES.md; #1–#8 need user close (403); 33/183 + 3 e2e |
 
 ## Rules

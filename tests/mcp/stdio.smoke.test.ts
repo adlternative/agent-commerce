@@ -74,7 +74,9 @@ describe('compiled MCP stdio handshake smoke', () => {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        DATA_PATH: join(dataDir, 'commerce.json'),
+        DATA_DIR: dataDir,
+        DATA_PATH: '',
+        STORE_BACKEND: 'json',
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     })

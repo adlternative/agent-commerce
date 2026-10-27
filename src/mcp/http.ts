@@ -10,9 +10,7 @@ import { CommerceService } from '../services/commerce.js'
 import { createMcpServer } from './create-mcp-server.js'
 
 const port = Number(process.env.MCP_HTTP_PORT ?? 8790)
-const opened = await createRepository({
-  dataPath: process.env.DATA_PATH,
-})
+const opened = await createRepository()
 const commerce = new CommerceService(opened.repo)
 
 const httpServer = createServer(async (req, res) => {

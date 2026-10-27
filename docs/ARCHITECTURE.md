@@ -7,13 +7,8 @@ Agent Commerce is an AI-native commerce stack: human customers, merchants, and A
 1. **Domain** (`src/domain/*`) — zod schemas, inventory math, cart/promotion quoting, order state machine, payment/return. Amounts are integer **cents**. Errors are `DomainError` → `{ code, message, hint?, retryable }`.
 2. **Repository** (`src/repo/*`) — `CommerceRepository` port with SQLite (default), JSON-file, and in-memory adapters.
 3. **Service** (`src/services/commerce.ts`) — use-cases; every write takes an **Idempotency-Key**.
-<<<<<<< HEAD
-4. **HTTP** (`src/server/*`) — `node:http` router, API Key + opaque Bearer + HS256 JWT auth, three-role RBAC with agent scopes (`agent:customer` / `agent:merchant`), OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`.
-5. **MCP** (`src/mcp/*`) — 16 tools + resources + prompts on the same `CommerceService`.
-=======
-4. **HTTP** (`src/server/*`) — `node:http` router, Bearer role auth, OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`.
+4. **HTTP** (`src/server/*`) — `node:http` router, API Key + opaque Bearer + HS256 JWT auth, three-role RBAC with agent scopes (`agent:customer` / `agent:merchant`), OpenAPI 3.1, structured JSON logs with `traceId`, Prometheus `GET /metrics`; optional `STATIC_DIR` serves the Vite `dist/` SPA.
 5. **MCP** (`src/mcp/*`) — 17 tools + resources (templates + completion) + polished prompts + domain→MCP error mapping + sampling (`recommend_products`) on the same `CommerceService`.
->>>>>>> d49421c (feat(w8): MCP resource templates, prompts, errors, sampling)
 
 Backend runtime is **compiled** (`npm run build:server` → `dist-server/`) so NodeNext-style `.js` import specifiers resolve to real files. Do not run `src/**/*.ts` with `--experimental-strip-types` for server/MCP entrypoints.
 6. **AI adapter** (`src/ai/*`) — well-known discovery, cursor pagination, audit log, token-bucket rate limit.
@@ -26,7 +21,7 @@ Default persistence is **SQLite** via Node’s built-in `node:sqlite` (`SqliteRe
 - Collections map to tables; unique primary key on idempotency `(scope, key)`.
 - Schema versions live in `schema_migrations`; applied on open (`src/repo/schema.ts`).
 - Writes use an in-process mutex + `BEGIN IMMEDIATE` (oversell-safe for one Node process).
-- Path: `DATA_PATH` or `data/commerce.sqlite`. Set `STORE_BACKEND=json` or a `.json` path to keep the legacy file store.
+- Path: `DATA_PATH` (explicit file) or `$DATA_DIR/commerce.sqlite`. `DATA_DIR` defaults to `./data` and is honored by HTTP, MCP, and migrate CLI. Set `STORE_BACKEND=json` or a `.json` path to keep the legacy file store.
 
 ### JSON → SQLite migration
 

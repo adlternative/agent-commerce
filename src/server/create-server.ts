@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import { writeFile, mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { existsSync } from 'node:fs'
 import { CommerceService } from '../services/commerce.js'
 import type { CommerceRepository } from '../repo/types.js'
 import { MemoryRepository, JsonFileRepository } from '../repo/json-repository.js'
@@ -13,6 +14,7 @@ import { TokenBucket } from '../ai/rate-limit.js'
 import { AuditLog } from '../ai/audit.js'
 import { createLogger, type Logger } from './logger.js'
 import { HttpMetrics } from './metrics.js'
+import { tryServeStatic } from './static.js'
 
 export type CreateServerOptions = {
   repo?: CommerceRepository
@@ -26,6 +28,13 @@ export type CreateServerOptions = {
   rateLimit?: { capacity: number; refillPerSec: number }
   /** Structured logger / metrics overrides (tests). */
   observability?: Observability
+  /**
+   * Directory of Vite `dist/` to serve (SPA). Env `STATIC_DIR` when unset.
+   * Empty string disables. Docker sets STATIC_DIR=/app/dist.
+   */
+  staticDir?: string
+  /** Bind address; env `HOST` (default 127.0.0.1; Docker uses 0.0.0.0). */
+  host?: string
 }
 
 export type AppServer = {
@@ -68,7 +77,31 @@ export function createAppServer(opts: CreateServerOptions = {}): AppServer {
   router.setOpenApiProvider(() => buildOpenApi())
   registerRoutes(router, commerce, { audit })
 
+  const staticDirRaw =
+    opts.staticDir !== undefined ? opts.staticDir : process.env.STATIC_DIR?.trim()
+  const staticRoot =
+    staticDirRaw && staticDirRaw.length > 0 ? resolve(staticDirRaw) : undefined
+  const host = opts.host ?? process.env.HOST?.trim() ?? '127.0.0.1'
+
   const server = createServer((req, res) => {
+    if (staticRoot && existsSync(staticRoot)) {
+      const method = (req.method ?? 'GET').toUpperCase()
+      if (method === 'GET' || method === 'HEAD') {
+        const url = new URL(req.url ?? '/', 'http://localhost')
+        const path = url.pathname
+        const reserved =
+          path.startsWith('/api') ||
+          path === '/health' ||
+          path === '/healthz' ||
+          path === '/readyz' ||
+          path === '/metrics' ||
+          path === '/openapi.json' ||
+          path.startsWith('/.well-known')
+        if (!reserved && tryServeStatic(req, res, staticRoot, path)) {
+          return
+        }
+      }
+    }
     void router.handle(req, res)
   })
 
@@ -88,18 +121,19 @@ export function createAppServer(opts: CreateServerOptions = {}): AppServer {
       if (opts.seedDemo) {
         await seedDemoCatalog(commerce)
       }
-      await new Promise<void>((resolve) => {
-        server.listen(port, '127.0.0.1', () => resolve())
+      await new Promise<void>((done) => {
+        server.listen(port, host, () => done())
       })
       const addr = server.address()
       if (!addr || typeof addr === 'string') {
         throw new Error('failed to bind server')
       }
-      return { port: addr.port, baseUrl: `http://127.0.0.1:${addr.port}` }
+      const displayHost = host === '0.0.0.0' ? '127.0.0.1' : host
+      return { port: addr.port, baseUrl: `http://${displayHost}:${addr.port}` }
     },
     async close() {
-      await new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()))
+      await new Promise<void>((done, reject) => {
+        server.close((err) => (err ? reject(err) : done()))
       })
     },
   }
