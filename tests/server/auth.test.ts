@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { createHmac } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   DEFAULT_AUTH,
   DEFAULT_JWT_SECRET,
+  DOCKER_INSECURE_JWT_SECRET,
   TEST_JWT_SECRET,
   authenticate,
   authHasDemoCredentials,
@@ -192,6 +195,13 @@ describe('fail-closed JWT secret + demo credentials (ACP-19 / #654)', () => {
     expect(() => buildAuthConfig({ env: { NODE_ENV: 'production' } })).toThrow(
       MissingJwtSecretError,
     )
+    try {
+      resolveJwtSecret({ NODE_ENV: 'production' })
+      expect.unreachable('expected MissingJwtSecretError')
+    } catch (err) {
+      expect(err).toBeInstanceOf(MissingJwtSecretError)
+      expect((err as Error).message).toMatch(/openssl rand -hex 32/)
+    }
   })
 
   it('uses JWT_SECRET from env in production and disables demos by default', () => {
@@ -270,6 +280,52 @@ describe('fail-closed JWT secret + demo credentials (ACP-19 / #654)', () => {
     } finally {
       await app.close()
     }
+  })
+
+  /**
+   * ACP-30 / #680: docker-compose used to default JWT_SECRET to a known string while
+   * NODE_ENV=production. Forging a merchant JWT with that secret MUST 401.
+   */
+  it('rejects merchant JWT forged with DOCKER_INSECURE_JWT_SECRET (compose default)', async () => {
+    expect(DOCKER_INSECURE_JWT_SECRET).toBe('dev-docker-change-me')
+    const auth = buildAuthConfig({
+      jwtSecret: 'server-secret-not-docker-default',
+      allowDemoCredentials: false,
+    })
+    const app = createAppServer({
+      repo: new MemoryRepository(),
+      auth,
+      rateLimit: { capacity: 100, refillPerSec: 10 },
+    })
+    const { baseUrl } = await app.listen(0)
+    try {
+      const forged = signJwt(
+        { sub: 'anon', role: 'merchant', exp: 9_999_999_999 },
+        DOCKER_INSECURE_JWT_SECRET,
+      )
+      const metrics = await fetch(`${baseUrl}/api/merchant/metrics`, {
+        headers: { authorization: `Bearer ${forged}` },
+      })
+      expect(metrics.status).toBe(401)
+      const metricsBody = (await metrics.json()) as { code: string }
+      expect(metricsBody.code).toBe('UNAUTHORIZED')
+
+      const orders = await fetch(`${baseUrl}/api/merchant/orders`, {
+        headers: { authorization: `Bearer ${forged}` },
+      })
+      expect(orders.status).toBe(401)
+      expect(((await orders.json()) as { code: string }).code).toBe('UNAUTHORIZED')
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('docker-compose requires JWT_SECRET and defaults ALLOW_DEMO_TOKENS to 0', () => {
+    const compose = readFileSync(join(process.cwd(), 'docker-compose.yml'), 'utf8')
+    expect(compose).not.toMatch(/dev-docker-change-me/)
+    expect(compose).toMatch(/JWT_SECRET:\s*\$\{JWT_SECRET:\?/)
+    expect(compose).toMatch(/ALLOW_DEMO_TOKENS:\s*\$\{ALLOW_DEMO_TOKENS:-0\}/)
+    expect(compose).not.toMatch(/ALLOW_DEMO_TOKENS:\s*\$\{ALLOW_DEMO_TOKENS:-1\}/)
   })
 
   it('well-known omits all demo tokens when demo credentials are off', async () => {

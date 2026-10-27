@@ -4,21 +4,34 @@
 
 ## Docker 一条命令跑起来
 
-```bash
-# 本地演示：JWT_SECRET + 演示 token；数据落在 named volume → /app/data
-JWT_SECRET=dev-docker-change-me ALLOW_DEMO_TOKENS=1 docker compose up --build -d
+`docker-compose.yml` **不设**弱默认 `JWT_SECRET`；未设置时 compose / 容器拒绝启动。生产镜像默认 `ALLOW_DEMO_TOKENS=0`。
 
-# 健康检查 + 烟雾
+```bash
+# 生成强随机 secret（必填），再起栈；数据落在 named volume → /app/data
+export JWT_SECRET="$(openssl rand -hex 32)"
+docker compose up --build -d
+
+# 本地需要演示 opaque Bearer 时再显式打开：
+# ALLOW_DEMO_TOKENS=1 docker compose up --build -d
+
+# 健康检查 + 烟雾（演示 token 仅在 ALLOW_DEMO_TOKENS=1 时可用）
 curl -sS http://127.0.0.1:8787/healthz
-curl -sS -H 'authorization: Bearer customer-token' http://127.0.0.1:8787/api/customer/products
 curl -sS http://127.0.0.1:8787/   # Vite dist（API 同进程静态托管）
 
 docker compose down
 ```
 
+未设 `JWT_SECRET` 时：
+
+```bash
+docker compose up
+# error: unset JWT_SECRET — e.g. export JWT_SECRET=$(openssl rand -hex 32)
+```
+
 - 镜像：多阶段构建（`npm ci` → frontend `build` + `build:server`）；运行时仅 `dist/` + `dist-server/` + `node_modules` + **tini**。
 - 持久化：`DATA_DIR=/app/data`（volume `commerce-data`）；SQLite 默认 `$DATA_DIR/commerce.sqlite`。
-- **生产必须设强随机 `JWT_SECRET`**；演示 Bearer 仅在 `ALLOW_DEMO_TOKENS=1`（或非 production）时可用。
+- **生产必须设强随机 `JWT_SECRET`**（`openssl rand -hex 32`）；切勿使用历史默认 `dev-docker-change-me` / `agent-commerce-dev-jwt-secret`。
+- 演示 Bearer 仅在 `ALLOW_DEMO_TOKENS=1`（或非 production）时可用；compose 默认 **0**。
 
 ## 快速开始（本地 npm）
 
@@ -51,9 +64,9 @@ npm run mcp
 
 `E2E_API_PORT`：Vite 开发代理与 Playwright E2E 用它定位 API 源（默认 **8787**）。跑 `npm test` / `test:e2e` 时 Playwright 会自动解析空闲端口并注入；本地 `npm run server` + `npm run dev` 若 API 不在 8787，两边都要设同一值（例如 `E2E_API_PORT=8790 PORT=8790`）。
 
-**生产部署必须设置 `JWT_SECRET`**（强随机值）。`NODE_ENV=production` 且未设置时进程**拒绝启动**。切勿使用仓库历史中的 `agent-commerce-dev-jwt-secret`。
+**生产部署必须设置 `JWT_SECRET`**（强随机值，例如 `openssl rand -hex 32`）。`NODE_ENV=production` 且未设置时进程**拒绝启动**并提示生成命令。切勿使用仓库历史中的 `agent-commerce-dev-jwt-secret` 或旧 compose 默认 `dev-docker-change-me`。
 
-演示 Bearer Token（仅当 `ALLOW_DEMO_TOKENS=1` 或 `NODE_ENV!=='production'`）：`customer-token` / `merchant-token` / `agent-token`（`agent:customer`）/ `agent-merchant-token`（`agent:merchant`）。生产默认关闭；关闭时 `/.well-known/ai-commerce.json` 也不再列出这些凭据。
+演示 Bearer Token（仅当 `ALLOW_DEMO_TOKENS=1` 或 `NODE_ENV!=='production'`）：`customer-token` / `merchant-token` / `agent-token`（`agent:customer`）/ `agent-merchant-token`（`agent:merchant`）。生产 / compose 默认关闭；关闭时 `/.well-known/ai-commerce.json` 也不再列出这些凭据。
 
 ## 能力一览
 

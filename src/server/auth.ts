@@ -47,6 +47,13 @@ export type AuthConfig = {
  */
 export const DEFAULT_JWT_SECRET = 'agent-commerce-dev-jwt-secret'
 
+/**
+ * Former docker-compose default HS256 secret (ACP-30 / #680).
+ * NEVER use as a compose/runtime default — kept only so regression tests can prove
+ * JWTs forged with this value are rejected (401).
+ */
+export const DOCKER_INSECURE_JWT_SECRET = 'dev-docker-change-me'
+
 /** Stable non-public secret for in-process DEFAULT_AUTH / unit tests. */
 export const TEST_JWT_SECRET = 'agent-commerce-test-jwt-secret'
 
@@ -88,7 +95,8 @@ export class MissingJwtSecretError extends Error {
   constructor() {
     super(
       'Refusing to start: JWT_SECRET is required when NODE_ENV=production. ' +
-        'Set a strong secret via the JWT_SECRET environment variable. ' +
+        'Set a strong secret via the JWT_SECRET environment variable ' +
+        '(e.g. export JWT_SECRET=$(openssl rand -hex 32)). ' +
         'Demo tokens require ALLOW_DEMO_TOKENS=1 (or a non-production NODE_ENV).',
     )
     this.name = 'MissingJwtSecretError'

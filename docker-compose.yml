@@ -1,5 +1,6 @@
 # One-command local stack: API (+ Vite dist static) with persistent DATA_DIR volume.
-# Production: set a strong JWT_SECRET. Local demos: ALLOW_DEMO_TOKENS=1.
+# JWT_SECRET is required (no insecure default). Generate: openssl rand -hex 32
+# Demo opaque tokens stay off unless ALLOW_DEMO_TOKENS=1 (production default: 0).
 services:
   api:
     build: .
@@ -11,8 +12,8 @@ services:
       PORT: "8787"
       DATA_DIR: /app/data
       STATIC_DIR: /app/dist
-      JWT_SECRET: ${JWT_SECRET:-dev-docker-change-me}
-      ALLOW_DEMO_TOKENS: ${ALLOW_DEMO_TOKENS:-1}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET — e.g. export JWT_SECRET=$$(openssl rand -hex 32)}
+      ALLOW_DEMO_TOKENS: ${ALLOW_DEMO_TOKENS:-0}
     volumes:
       - commerce-data:/app/data
     healthcheck:
