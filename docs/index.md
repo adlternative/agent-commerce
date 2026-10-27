@@ -57,7 +57,9 @@ curl -sS http://127.0.0.1:8787/healthz
 | [接入指南](/product/INTEGRATION) | REST / MCP / UI 三条路径 |
 | [API & MCP 参考](/reference/) | **自动生成**自 `openapi.json` 与 MCP tool table |
 | [ADR](/engineering/adr/README) | 架构决策记录 |
-| [部署](/deploy) | GitHub Pages / Cloudflare Pages（免费） |
+| [应用部署](/architecture/DEPLOYMENT) | Self-host compose / gateway / backup（免费） |
+| [基础设施](/architecture/INFRA) | SQLite 边界、拓扑、成本表 |
+| [文档站部署](/deploy) | GitHub Pages / Cloudflare Pages（免费） |
 
 ## 硬约定
 

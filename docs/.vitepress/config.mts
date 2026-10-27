@@ -77,7 +77,9 @@ export default defineConfig({
         items: [
           { text: '贡献规范', link: '/engineering/CONTRIBUTING' },
           { text: '安全', link: '/engineering/SECURITY' },
-          { text: '部署（Pages）', link: '/deploy' },
+          { text: '应用部署', link: '/architecture/DEPLOYMENT' },
+          { text: '基础设施', link: '/architecture/INFRA' },
+          { text: '文档站（Pages）', link: '/deploy' },
         ],
       },
     ],
