@@ -91,6 +91,7 @@ npm run mcp
 | `npm run openapi:check` | 校验已提交的 OpenAPI 与生成结果一致 |
 | `npm run server` | HTTP API |
 | `npm run mcp` / `mcp:http` | MCP stdio / Streamable HTTP |
+| `npm run test:mcp:http` | Real-client Streamable HTTP smoke (`Client` + `StreamableHTTPClientTransport`) |
 | `npm run migrate` | 对 SQLite 跑 schema migration；可选从 JSON 导入 |
 
 ## 技术栈

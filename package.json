@@ -22,6 +22,8 @@
     "mcp": "node dist-server/mcp/stdio.js",
     "premcp:http": "npm run build:server",
     "mcp:http": "node dist-server/mcp/http.js",
+    "pretest:mcp:http": "npm run build:server",
+    "test:mcp:http": "vitest run tests/mcp/http.smoke.test.ts",
     "openapi": "vitest run tests/server/openapi.test.ts",
     "openapi:check": "vitest run tests/server/openapi-check.test.ts",
     "premigrate": "npm run build:server",
