@@ -1,6 +1,13 @@
+---
+title: App deployment
+description: Self-host Agent Commerce — compose, gateway, observability, backup, free-tier costs
+---
+
 # Deployment runbook
 
 Default path: **self-host + free tier only** (no paid SaaS, no paid domain required). Decisions and scale bounds: [INFRA.md](./INFRA.md).
+
+> Docs-site (VitePress) hosting is separate: see [部署（文档站）](/deploy).
 
 ## Quick start (existing compose)
 

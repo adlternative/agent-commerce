@@ -1,3 +1,8 @@
+---
+title: Infrastructure
+description: SQLite bounds, topologies, gateway/storage choices for self-hosted Agent Commerce
+---
+
 # Infrastructure decisions
 
 Self-host + free-tier only by default. No paid SaaS, no paid domains required for the reference paths below.
