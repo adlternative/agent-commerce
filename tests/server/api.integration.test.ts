@@ -389,6 +389,7 @@ describe('HTTP API integration', () => {
     })
     const row = (listed.json.items as Json[]).find((p) => p.sku === 'STOCK-01')
     expect(row).toBeTruthy()
+    expect(row).toMatchObject({ onHand: 7, reserved: 0, available: 7 })
 
     const inv = await api(baseUrl, 'GET', `/api/merchant/inventory/${created.json.id}`, {
       token: 'merchant-token',
@@ -459,5 +460,65 @@ describe('HTTP API integration', () => {
     })
     expect(order.status).toBe(200)
     expect(order.json.status).toBe('created')
+  })
+
+  it('merchant product list includes stock fields; available decreases after order', async () => {
+    const created = await api(baseUrl, 'POST', '/api/merchant/products', {
+      token: 'merchant-token',
+      idempotencyKey: 'mlist-stock-prod',
+      body: {
+        sku: 'MLIST-01',
+        name: 'Merchant List Stock Widget',
+        priceCents: 1_200,
+        stock: 5,
+      },
+    })
+    expect(created.status).toBe(200)
+    const pid = created.json.id as string
+
+    const before = await api(baseUrl, 'GET', '/api/merchant/products?activeOnly=false', {
+      token: 'merchant-token',
+    })
+    expect(before.status).toBe(200)
+    expect(before.json).toMatchObject({
+      items: expect.any(Array),
+      nextCursor: null,
+      hasMore: false,
+    })
+    const beforeRow = (before.json.items as Json[]).find((p) => p.id === pid)
+    expect(beforeRow).toMatchObject({
+      onHand: 5,
+      reserved: 0,
+      available: 5,
+    })
+
+    const cart = await api(baseUrl, 'POST', '/api/customer/carts', {
+      idempotencyKey: 'mlist-stock-cart',
+      body: { customerId: 'cust_mlist_stock' },
+    })
+    expect(cart.status).toBe(200)
+    const added = await api(baseUrl, 'POST', `/api/customer/carts/${cart.json.id}/items`, {
+      idempotencyKey: 'mlist-stock-add',
+      body: { productId: pid, quantity: 2 },
+    })
+    expect(added.status).toBe(200)
+    const order = await api(baseUrl, 'POST', '/api/customer/orders', {
+      idempotencyKey: 'mlist-stock-order',
+      body: { cartId: cart.json.id },
+    })
+    expect(order.status).toBe(200)
+    expect(order.json.status).toBe('created')
+
+    const after = await api(baseUrl, 'GET', '/api/merchant/products?activeOnly=false', {
+      token: 'merchant-token',
+    })
+    expect(after.status).toBe(200)
+    const afterRow = (after.json.items as Json[]).find((p) => p.id === pid)
+    expect(afterRow).toMatchObject({
+      onHand: 5,
+      reserved: 2,
+      available: 3,
+    })
+    expect(afterRow!.available as number).toBeLessThan(beforeRow!.available as number)
   })
 })

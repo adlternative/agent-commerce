@@ -19,6 +19,7 @@ import {
   adjustOnHand,
   availableQty,
   batchAvailableByProductIds,
+  batchStockByProductIds,
   commitStock,
   createReservation,
   isReservationExpired,
@@ -65,6 +66,13 @@ import {
 /** Catalog product with sellable qty (onHand − reserved). */
 export type ProductWithAvailability = Product & { available: number }
 
+/** Merchant catalog row with full inventory snapshot. */
+export type ProductWithStock = Product & {
+  onHand: number
+  reserved: number
+  available: number
+}
+
 export type ScoredProductWithAvailability = {
   product: ProductWithAvailability
   score: number
@@ -102,6 +110,33 @@ export class CommerceService {
     return searchProducts(db.products, {
       ...query,
       activeOnly: query.activeOnly !== false,
+    })
+  }
+
+  /**
+   * Merchant product list with onHand/reserved/available on each item.
+   * Stock via `getStockByProductIds` (SQLite: `WHERE product_id IN (...)` —
+   * one statement for the whole list, not N+1 inventory GETs).
+   */
+  async listProductsWithStock(
+    query: { q?: string; tag?: string; activeOnly?: boolean } = {},
+  ): Promise<ProductWithStock[]> {
+    const db = await this.repo.read()
+    const products = searchProducts(db.products, {
+      ...query,
+      activeOnly: query.activeOnly !== false,
+    })
+    const ids = products.map((p) => p.id)
+    const stockRows = await this.repo.getStockByProductIds(ids)
+    const byId = batchStockByProductIds(stockRows, ids)
+    return products.map((p) => {
+      const snap = byId.get(p.id)!
+      return {
+        ...p,
+        onHand: snap.onHand,
+        reserved: snap.reserved,
+        available: snap.available,
+      }
     })
   }
 

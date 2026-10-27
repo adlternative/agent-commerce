@@ -31,6 +31,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-28 | MCP Streamable HTTP authentication (#676) | In progress | Reuse REST auth; merchant tool RBAC; smoke auth assertions |
 | ACP-30 | Docker JWT no insecure defaults (#680) | In progress | Require JWT_SECRET in compose; ALLOW_DEMO_TOKENS default 0; forged `dev-docker-change-me` → 401 |
 | ACP-29 | Playwright e2e on SQLite not JSON (#677) | In progress | DATA_DIR per worker; /healthz store=sqlite; dedicated JSON legacy spec |
+| ACP-31 | Merchant product list stock fields (#681) | In progress | onHand/reserved/available on GET /api/merchant/products; batch IN; UI columns |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.

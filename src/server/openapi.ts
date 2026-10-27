@@ -128,7 +128,20 @@ const productPageSchema = {
   type: 'object',
   required: ['items', 'nextCursor', 'hasMore'],
   description:
-    'Always { items, nextCursor, hasMore }. Each Product item may include integer `available` (sellable qty) on customer/agent lists. Omit limit/cursor to return the full match set (nextCursor null). With limit (1–100, default 20 when paging) and optional cursor, returns one page.',
+    'Always { items, nextCursor, hasMore }. Each Product item may include integer `available` (sellable qty) on customer/agent lists. Merchant list items also include `onHand` and `reserved`. Omit limit/cursor to return the full match set (nextCursor null). With limit (1–100, default 20 when paging) and optional cursor, returns one page.',
+  properties: {
+    items: { type: 'array', items: { $ref: '#/components/schemas/Product' } },
+    nextCursor: { type: 'string', nullable: true, description: 'Opaque cursor for the next page; null when no more' },
+    hasMore: { type: 'boolean' },
+  },
+}
+
+/** Merchant product page — each item includes onHand, reserved, available (batch stock, no N+1). */
+const merchantProductPageSchema = {
+  type: 'object',
+  required: ['items', 'nextCursor', 'hasMore'],
+  description:
+    'Always { items, nextCursor, hasMore }. Each item includes onHand, reserved, and available from one batch stock lookup (WHERE product_id IN (...)).',
   properties: {
     items: { type: 'array', items: { $ref: '#/components/schemas/Product' } },
     nextCursor: { type: 'string', nullable: true, description: 'Opaque cursor for the next page; null when no more' },
@@ -542,7 +555,8 @@ export function buildOpenApi() {
       }),
       '/api/merchant/products': pathItem({
         get: {
-          summary: 'List products (merchant)',
+          summary:
+            'List products (merchant); each item includes onHand, reserved, available',
           tags: ['merchant'],
           security: bearer,
           parameters: [
@@ -551,7 +565,7 @@ export function buildOpenApi() {
             { name: 'activeOnly', in: 'query', schema: { type: 'boolean' } },
             ...productListPaginationParams,
           ],
-          responses: ok(productPageSchema),
+          responses: ok(merchantProductPageSchema),
         },
         post: {
           summary: 'Upsert product',

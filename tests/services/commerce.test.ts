@@ -61,6 +61,33 @@ describe('CommerceService', () => {
     expect(byId.get(b.id)).toBe(0)
   })
 
+  it('listProductsWithStock attaches onHand/reserved/available via one batch stock lookup', async () => {
+    const repo = new MemoryRepository()
+    const svc = new CommerceService(repo)
+    const calls: string[] = []
+    const orig = repo.getStockByProductIds.bind(repo)
+    repo.getStockByProductIds = async (ids) => {
+      calls.push(`batch:${ids.length}`)
+      return orig(ids)
+    }
+
+    const a = await svc.upsertProduct(
+      { sku: 'M-A', name: 'Merchant A', priceCents: 100, stock: 5 },
+      'mstock-a',
+    )
+    const b = await svc.upsertProduct(
+      { sku: 'M-B', name: 'Merchant B', priceCents: 200, stock: 0 },
+      'mstock-b',
+    )
+
+    const listed = await svc.listProductsWithStock({ activeOnly: false })
+    expect(calls).toEqual([`batch:${listed.length}`])
+    expect(calls).toHaveLength(1)
+    const byId = new Map(listed.map((p) => [p.id, p]))
+    expect(byId.get(a.id)).toMatchObject({ onHand: 5, reserved: 0, available: 5 })
+    expect(byId.get(b.id)).toMatchObject({ onHand: 0, reserved: 0, available: 0 })
+  })
+
   it('upserts product idempotently', async () => {
     const { svc, product } = await seedService()
     const again = await svc.upsertProduct(

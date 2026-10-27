@@ -112,10 +112,20 @@
                 "type": "string",
                 "format": "date-time"
               },
+              "onHand": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Units physically on hand. Present on GET /api/merchant/products list items."
+              },
+              "reserved": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Units held for unpaid/open orders. Present on GET /api/merchant/products list items."
+              },
               "available": {
                 "type": "integer",
                 "minimum": 0,
-                "description": "Sellable units (onHand − reserved). Present on GET /api/agent/products and GET /api/customer/products list items."
+                "description": "Sellable units (onHand − reserved). Present on GET /api/agent/products, GET /api/customer/products, and GET /api/merchant/products list items."
               }
             },
             "required": [
@@ -729,7 +739,7 @@
                     "nextCursor",
                     "hasMore"
                   ],
-                  "description": "Always { items, nextCursor, hasMore }. Each Product item may include integer `available` (sellable qty) on customer/agent lists. Omit limit/cursor to return the full match set (nextCursor null). With limit (1–100, default 20 when paging) and optional cursor, returns one page.",
+                  "description": "Always { items, nextCursor, hasMore }. Each Product item may include integer `available` (sellable qty) on customer/agent lists. Merchant list items also include `onHand` and `reserved`. Omit limit/cursor to return the full match set (nextCursor null). With limit (1–100, default 20 when paging) and optional cursor, returns one page.",
                   "properties": {
                     "items": {
                       "type": "array",
@@ -1845,7 +1855,7 @@
     },
     "/api/merchant/products": {
       "get": {
-        "summary": "List products (merchant)",
+        "summary": "List products (merchant); each item includes onHand, reserved, available",
         "tags": [
           "merchant"
         ],
@@ -1908,7 +1918,7 @@
                     "nextCursor",
                     "hasMore"
                   ],
-                  "description": "Always { items, nextCursor, hasMore }. Each Product item may include integer `available` (sellable qty) on customer/agent lists. Omit limit/cursor to return the full match set (nextCursor null). With limit (1–100, default 20 when paging) and optional cursor, returns one page.",
+                  "description": "Always { items, nextCursor, hasMore }. Each item includes onHand, reserved, and available from one batch stock lookup (WHERE product_id IN (...)).",
                   "properties": {
                     "items": {
                       "type": "array",
@@ -3398,7 +3408,7 @@
                     "nextCursor",
                     "hasMore"
                   ],
-                  "description": "Always { items, nextCursor, hasMore }. Each Product item may include integer `available` (sellable qty) on customer/agent lists. Omit limit/cursor to return the full match set (nextCursor null). With limit (1–100, default 20 when paging) and optional cursor, returns one page.",
+                  "description": "Always { items, nextCursor, hasMore }. Each Product item may include integer `available` (sellable qty) on customer/agent lists. Merchant list items also include `onHand` and `reserved`. Omit limit/cursor to return the full match set (nextCursor null). With limit (1–100, default 20 when paging) and optional cursor, returns one page.",
                   "properties": {
                     "items": {
                       "type": "array",

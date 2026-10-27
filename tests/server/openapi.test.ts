@@ -12,6 +12,22 @@ describe('openapi', () => {
     expect(doc.components.securitySchemes.BearerAuth).toBeTruthy()
     expect(doc.components.securitySchemes.ApiKeyAuth).toBeTruthy()
     expect(doc.components.schemas.Product).toBeTruthy()
+    const productSchema = doc.components.schemas.Product as {
+      properties?: Record<string, unknown>
+      definitions?: { Product?: { properties?: Record<string, unknown> } }
+    }
+    const productProps =
+      productSchema.properties ?? productSchema.definitions?.Product?.properties ?? {}
+    expect(productProps.available).toBeTruthy()
+    expect(productProps.onHand).toBeTruthy()
+    expect(productProps.reserved).toBeTruthy()
+    const merchantList = doc.paths['/api/merchant/products'] as {
+      get?: { summary?: string; responses?: { '200'?: { content?: { 'application/json'?: { schema?: { description?: string } } } } } }
+    }
+    expect(merchantList.get?.summary).toMatch(/onHand|available/i)
+    expect(
+      merchantList.get?.responses?.['200']?.content?.['application/json']?.schema?.description,
+    ).toMatch(/onHand/)
     expect(doc.components.schemas.Order).toBeTruthy()
     expect(doc.components.schemas.Cart).toBeTruthy()
     expect(doc.components.schemas.Promotion).toBeTruthy()

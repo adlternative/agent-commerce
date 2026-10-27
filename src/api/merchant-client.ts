@@ -76,6 +76,7 @@ export function createMerchantApi(baseUrl = '') {
   return {
     metrics: () => request<Metrics>('GET', '/api/merchant/metrics'),
     listProducts: async () => {
+      // List items already include onHand/reserved/available (batch stock; no N+1).
       const page = await request<{ items: Product[] }>(
         'GET',
         '/api/merchant/products?activeOnly=false',
@@ -83,7 +84,7 @@ export function createMerchantApi(baseUrl = '') {
       return page.items
     },
     upsertProduct: (body: Record<string, unknown>) =>
-      request<Product>('POST', '/api/merchant/products', {
+      request<Product & Partial<Stock>>('POST', '/api/merchant/products', {
         body,
         idempotencyKey: newKey('m-prod'),
       }),
