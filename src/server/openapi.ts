@@ -272,14 +272,32 @@ export function buildOpenApi() {
         get: {
           summary: 'Liveness (legacy alias of /healthz)',
           security: [],
-          responses: ok({ type: 'object', properties: { ok: { type: 'boolean' } } }),
+          responses: ok({
+            type: 'object',
+            properties: {
+              ok: { type: 'boolean' },
+              store: {
+                type: 'string',
+                description: 'Persistence backend when known (sqlite | json)',
+              },
+            },
+          }),
         },
       }),
       '/healthz': pathItem({
         get: {
           summary: 'Liveness probe (no auth)',
           security: [],
-          responses: ok({ type: 'object', properties: { ok: { type: 'boolean' } } }),
+          responses: ok({
+            type: 'object',
+            properties: {
+              ok: { type: 'boolean' },
+              store: {
+                type: 'string',
+                description: 'Persistence backend when known (sqlite | json)',
+              },
+            },
+          }),
         },
       }),
       '/readyz': pathItem({

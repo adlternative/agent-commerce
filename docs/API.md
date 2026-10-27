@@ -77,7 +77,7 @@ Shopping aliases require `agent:customer`; catalog/stock/list-orders + audit req
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/healthz` | liveness (no auth) |
+| GET | `/healthz` | liveness (no auth); `{ ok, store? }` where `store` is `sqlite` \| `json` when known |
 | GET | `/readyz` | readiness — store read/write probe (no auth); `503 STORE_NOT_READY` on failure |
 | GET | `/health` | liveness alias of `/healthz` |
 | GET | `/metrics` | Prometheus text (`http_requests_total`, duration sum/count) |

@@ -86,6 +86,8 @@ npm run mcp
 
 `E2E_API_PORT`：Vite 开发代理与 Playwright E2E 用它定位 API 源（默认 **8787**）。跑 `npm test` / `test:e2e` 时 Playwright 会自动解析空闲端口并注入；本地 `npm run server` + `npm run dev` 若 API 不在 8787，两边都要设同一值（例如 `E2E_API_PORT=8790 PORT=8790`）。
 
+默认 E2E 与生产同构：给 API 进程传 **`DATA_DIR=<per-worker tmpdir>`**（SQLite），**不再**传 `DATA_PATH=*.json`。`GET /healthz` 的 `store` 字段应为 `sqlite`。遗留 JSON 后端由独立配置 `playwright.json-legacy.config.ts`（`STORE_BACKEND=json`）覆盖一条 spec。
+
 **生产部署必须设置 `JWT_SECRET`**（强随机值，例如 `openssl rand -hex 32`）。`NODE_ENV=production` 且未设置时进程**拒绝启动**并提示生成命令。切勿使用仓库历史中的 `agent-commerce-dev-jwt-secret` 或旧 compose 默认 `dev-docker-change-me`。
 
 演示 Bearer Token（仅当 `ALLOW_DEMO_TOKENS=1` 或 `NODE_ENV!=='production'`）：`customer-token` / `merchant-token` / `agent-token`（`agent:customer`）/ `agent-merchant-token`（`agent:merchant`）。生产 / compose 默认关闭；关闭时 `/.well-known/ai-commerce.json` 也不再列出这些凭据。
@@ -118,8 +120,8 @@ npm run mcp
 | 命令 | 作用 |
 |------|------|
 | `npm run test:unit` | Vitest only（`vitest run`） |
-| `npm run test:e2e` | Playwright E2E（需先 `npx playwright install chromium`） |
-| `npm test` | `vitest run && playwright test`（unit + e2e） |
+| `npm run test:e2e` | Playwright E2E（默认 SQLite `DATA_DIR`；另跑 1 条 JSON legacy；需 Chromium） |
+| `npm test` | `vitest run` + Playwright SQLite e2e + JSON legacy e2e |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | typecheck + Vite build |
 | `npm run openapi` | 重新生成 `docs/openapi.json` |

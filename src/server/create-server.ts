@@ -29,6 +29,11 @@ export type CreateServerOptions = {
   /** Structured logger / metrics overrides (tests). */
   observability?: Observability
   /**
+   * Persistence backend name for GET /healthz (`sqlite` | `json`).
+   * When set (or via `observability.store`), liveness includes `{ store }`.
+   */
+  store?: string
+  /**
    * Directory of Vite `dist/` to serve (SPA). Env `STATIC_DIR` when unset.
    * Empty string disables. Docker sets STATIC_DIR=/app/dist.
    */
@@ -69,10 +74,11 @@ export function createAppServer(opts: CreateServerOptions = {}): AppServer {
     (async () => {
       await repo.checkReady()
     })
+  const store = opts.store ?? opts.observability?.store
   const router = new Router(
     opts.auth ?? DEFAULT_AUTH,
     { audit, rateLimit },
-    { logger, metrics, readiness },
+    { logger, metrics, readiness, store },
   )
   router.setOpenApiProvider(() => buildOpenApi())
   registerRoutes(router, commerce, { audit })
