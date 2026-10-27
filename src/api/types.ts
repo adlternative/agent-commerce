@@ -37,8 +37,22 @@ export type Order = {
   totalCents: number
   subtotalCents: number
   discountCents: number
-  lines: { productId: string; quantity: number; unitPriceCents: number }[]
+  lines: { productId: string; quantity: number; unitPriceCents: number; lineTotalCents?: number }[]
   promotionCode?: string
+}
+
+export type ReturnLine = {
+  productId: string
+  quantity: number
+}
+
+export type ReturnRequest = {
+  id: string
+  orderId: string
+  reason: string
+  lines: ReturnLine[]
+  amountCents: number
+  status: string
 }
 
 export type Stock = {

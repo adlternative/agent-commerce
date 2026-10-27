@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createMerchantApi, type Metrics, type Promotion } from '../api/merchant-client.js'
 import { formatCents } from '../api/format.js'
-import type { Order, Product, Stock } from '../api/types.js'
+import type { Order, Product, ReturnRequest, Stock } from '../api/types.js'
 
 const api = createMerchantApi()
 
@@ -10,6 +10,7 @@ export default function MerchantApp() {
   const [products, setProducts] = useState<Product[]>([])
   const [stocks, setStocks] = useState<Record<string, Stock>>({})
   const [orders, setOrders] = useState<Order[]>([])
+  const [returns, setReturns] = useState<ReturnRequest[]>([])
   const [error, setError] = useState<string | null>(null)
   const [sku, setSku] = useState('NEW-SKU')
   const [name, setName] = useState('New Product')
@@ -21,10 +22,16 @@ export default function MerchantApp() {
   async function refresh() {
     setError(null)
     try {
-      const [m, p, o] = await Promise.all([api.metrics(), api.listProducts(), api.listOrders()])
+      const [m, p, o, r] = await Promise.all([
+        api.metrics(),
+        api.listProducts(),
+        api.listOrders(),
+        api.listReturns(),
+      ])
       setMetrics(m)
       setProducts(p)
       setOrders(o)
+      setReturns(r)
       const stockEntries = await Promise.all(
         p.map(async (prod) => [prod.id, await api.inventory(prod.id)] as const),
       )
@@ -69,6 +76,16 @@ export default function MerchantApp() {
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : '订单流转失败')
+    }
+  }
+
+  async function decideReturn(ret: ReturnRequest, decision: 'approve' | 'reject') {
+    try {
+      if (decision === 'approve') await api.approveReturn(ret.id)
+      else await api.rejectReturn(ret.id)
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '退货处理失败')
     }
   }
 
@@ -181,9 +198,10 @@ export default function MerchantApp() {
         <h2>订单流转</h2>
         <ul className="product-list">
           {orders.map((o) => (
-            <li key={o.id} className="merchant-row">
+            <li key={o.id} className="merchant-row" data-order-id={o.id} data-order-status={o.status}>
               <div>
-                <code>{o.id}</code> · {o.status} · {formatCents(o.totalCents)}
+                <code>{o.id}</code> · <span className="order-status">{o.status}</span> ·{' '}
+                {formatCents(o.totalCents)}
               </div>
               {(o.status === 'paid' || o.status === 'shipped') && (
                 <button type="button" className="primary" onClick={() => void advance(o)}>
@@ -193,6 +211,41 @@ export default function MerchantApp() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="section" data-testid="returns-section">
+        <h2>退货审核</h2>
+        {returns.length === 0 ? (
+          <p className="muted">暂无退货申请</p>
+        ) : (
+          <ul className="product-list">
+            {returns.map((r) => (
+              <li key={r.id} className="merchant-row" data-return-id={r.id} data-return-status={r.status}>
+                <div>
+                  <code>{r.id}</code> · {r.status} · {formatCents(r.amountCents)}
+                  <div className="muted">
+                    订单 <code>{r.orderId}</code> · {r.reason} ·{' '}
+                    {r.lines.map((l) => `${l.productId}×${l.quantity}`).join(', ')}
+                  </div>
+                </div>
+                {r.status === 'requested' ? (
+                  <div className="row-actions">
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() => void decideReturn(r, 'approve')}
+                    >
+                      批准
+                    </button>
+                    <button type="button" onClick={() => void decideReturn(r, 'reject')}>
+                      拒绝
+                    </button>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="section">

@@ -172,13 +172,16 @@ describe('CommerceService', () => {
     expect(stock.onHand).toBe(3)
   })
 
-  it('refunds paid order via requestReturn and restocks', async () => {
+  it('refunds paid order via requestReturn + approveReturn and restocks', async () => {
     const { svc, product } = await seedService(3)
     const cart = await svc.createCart('cust_g', 'cart-ik-8')
     await svc.addItem(cart.id, product.id, 1, 'add-ik-8')
     const order = await svc.placeOrder(cart.id, 'order-ik-8')
     await svc.payOrder(order.id, 'pay-ik-8')
-    const result = await svc.requestReturn(order.id, 'too small', 'ret-ik-8')
+    const requested = await svc.requestReturn(order.id, 'too small', 'ret-ik-8')
+    expect(requested.return.status).toBe('requested')
+    expect(requested.order.status).toBe('paid')
+    const result = await svc.approveReturn(requested.return.id, 'ret-approve-8')
     expect(result.order.status).toBe('refunded')
     expect(result.payment.status).toBe('refunded')
     expect(result.return.status).toBe('refunded')

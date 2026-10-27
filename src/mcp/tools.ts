@@ -88,8 +88,18 @@ export const ToolSchemas = {
     idempotencyKey: z.string().min(1),
   }),
   request_return: z.object({
-    orderId: z.string().min(1).describe('Paid/shipped/delivered order to refund'),
+    orderId: z.string().min(1).describe('Paid/shipped/delivered order to request a return on'),
     reason: z.string().min(1).describe('Human-readable return reason'),
+    lines: z
+      .array(
+        z.object({
+          productId: z.string().min(1),
+          quantity: z.number().int().positive(),
+        }),
+      )
+      .min(1)
+      .optional()
+      .describe('Optional line selection; omit to return all lines'),
     idempotencyKey: z.string().min(1),
   }),
   upsert_product: UpsertProductInputSchema.extend({
@@ -106,7 +116,15 @@ export const ToolSchemas = {
   list_orders: z.object({
     customerId: z.string().optional(),
     status: z
-      .enum(['created', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'])
+      .enum([
+        'created',
+        'paid',
+        'shipped',
+        'delivered',
+        'cancelled',
+        'partially_refunded',
+        'refunded',
+      ])
       .optional(),
   }),
 } as const
@@ -137,7 +155,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   cancel_order:
     'Cancel an order. Releases reservations when status=created; restocks when status=paid.',
   request_return:
-    'Request a return/refund for a paid/shipped/delivered order. Auto-approves and restocks in this demo core.',
+    'Request a return for a paid/shipped/delivered order (status=requested). Merchant must approve to refund + restock.',
   upsert_product:
     'Merchant: create or update a product (sku, name, priceCents, tags, agentNotes). Creates zero stock row if new.',
   adjust_stock:
@@ -225,7 +243,12 @@ export async function callTool(
       case 'request_return': {
         const args = ToolSchemas.request_return.parse(rawArgs)
         return toolResult(
-          await commerce.requestReturn(args.orderId, args.reason, args.idempotencyKey),
+          await commerce.requestReturn(
+            args.orderId,
+            args.reason,
+            args.idempotencyKey,
+            args.lines,
+          ),
         )
       }
       case 'upsert_product': {

@@ -20,8 +20,15 @@ export const AdjustStockSchema = z.object({
   delta: z.number().int(),
 })
 
+export const ReturnLineBodySchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.number().int().positive(),
+})
+
 export const CreateReturnBodySchema = z.object({
   reason: z.string().min(1),
+  /** Optional line selection; omit to return all order lines. */
+  lines: z.array(ReturnLineBodySchema).min(1).optional(),
 })
 
 export const CreateCartBodySchema = z.object({

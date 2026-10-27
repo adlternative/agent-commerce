@@ -1,5 +1,5 @@
 import { ApiError } from './client.js'
-import type { Order, Product, Stock } from './types.js'
+import type { Order, Product, ReturnRequest, Stock } from './types.js'
 
 export type Metrics = {
   gmvCents: number
@@ -85,6 +85,17 @@ export function createMerchantApi(baseUrl = '') {
     inventory: (productId: string) =>
       request<Stock>('GET', `/api/merchant/inventory/${productId}`),
     listOrders: () => request<Order[]>('GET', '/api/merchant/orders'),
+    listReturns: () => request<ReturnRequest[]>('GET', '/api/merchant/returns'),
+    approveReturn: (returnId: string) =>
+      request<{ return: ReturnRequest; order: Order }>(
+        'POST',
+        `/api/merchant/returns/${returnId}/approve`,
+        { idempotencyKey: newKey('m-ret-ok') },
+      ),
+    rejectReturn: (returnId: string) =>
+      request<ReturnRequest>('POST', `/api/merchant/returns/${returnId}/reject`, {
+        idempotencyKey: newKey('m-ret-no'),
+      }),
     ship: (orderId: string) =>
       request<Order>('POST', `/api/merchant/orders/${orderId}/ship`, {
         idempotencyKey: newKey('m-ship'),
