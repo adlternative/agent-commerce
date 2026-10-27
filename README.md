@@ -16,7 +16,8 @@ npm run build:server
 
 # API（默认 :8787，写入 data/commerce.sqlite，并种子演示商品）
 # 若存在旧的 data/commerce.json 且 SQLite 为空，启动时自动导入一次
-npm run server
+# 非 production：未设 JWT_SECRET 时使用进程内随机 secret（不对外暴露）
+JWT_SECRET=dev-only-change-me npm run server
 
 # 顾客前台 + 商家后台（Vite :5173，代理 /api → API）
 # Vite 代理读 E2E_API_PORT（默认 8787）；E2E / 改端口时请与 API 的 PORT 对齐
@@ -29,7 +30,9 @@ npm run mcp
 
 `E2E_API_PORT`：Vite 开发代理与 Playwright E2E 用它定位 API 源（默认 **8787**）。跑 `npm test` / `test:e2e` 时 Playwright 会自动解析空闲端口并注入；本地 `npm run server` + `npm run dev` 若 API 不在 8787，两边都要设同一值（例如 `E2E_API_PORT=8790 PORT=8790`）。
 
-演示 Bearer Token：`customer-token` / `merchant-token` / `agent-token`（`agent:customer`）/ `agent-merchant-token`（`agent:merchant`）。
+**生产部署必须设置 `JWT_SECRET`**（强随机值）。`NODE_ENV=production` 且未设置时进程**拒绝启动**。切勿使用仓库历史中的 `agent-commerce-dev-jwt-secret`。
+
+演示 Bearer Token（仅当 `ALLOW_DEMO_TOKENS=1` 或 `NODE_ENV!=='production'`）：`customer-token` / `merchant-token` / `agent-token`（`agent:customer`）/ `agent-merchant-token`（`agent:merchant`）。生产默认关闭；关闭时 `/.well-known/ai-commerce.json` 也不再列出这些凭据。
 
 ## 能力一览
 

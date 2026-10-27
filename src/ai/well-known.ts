@@ -1,7 +1,38 @@
 import { TOOL_DESCRIPTIONS } from '../mcp/tools.js'
 
+export type AiCommerceDiscoveryOptions = {
+  /**
+   * When false, omit all demo opaque tokens and API key values from the document.
+   * Production / demos-off must not advertise credentials. Default true for local docs helpers.
+   */
+  includeDemoCredentials?: boolean
+}
+
 /** Capability discovery document for AI agents. */
-export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
+export function buildAiCommerceDiscovery(
+  baseUrl = 'http://localhost:8787',
+  opts: AiCommerceDiscoveryOptions = {},
+) {
+  const includeDemoCredentials = opts.includeDemoCredentials !== false
+  const demoBearerTokens = {
+    customer: 'customer-token',
+    merchant: 'merchant-token',
+    agentCustomer: 'agent-token',
+    agentMerchant: 'agent-merchant-token',
+  }
+  const demoApiKeys = {
+    customer: 'customer-key',
+    merchant: 'merchant-key',
+    agentCustomer: 'agent-key',
+    agentMerchant: 'agent-merchant-key',
+  }
+  const demoCompatTokens = {
+    customer: 'customer-token',
+    merchant: 'merchant-token',
+    agent: 'agent-token',
+    agentMerchant: 'agent-merchant-token',
+  }
+
   return {
     name: 'agent-commerce',
     version: '0.6.0',
@@ -14,12 +45,7 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
       schemes: ['bearer', 'apiKey', 'jwt'],
       bearer: {
         scheme: 'bearer',
-        tokens: {
-          customer: 'customer-token',
-          merchant: 'merchant-token',
-          agentCustomer: 'agent-token',
-          agentMerchant: 'agent-merchant-token',
-        },
+        ...(includeDemoCredentials ? { tokens: demoBearerTokens } : {}),
         jwt: {
           alg: 'HS256',
           claims: ['sub', 'role', 'scopes'],
@@ -30,21 +56,14 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
       apiKey: {
         header: 'X-API-Key',
         altAuthorization: 'ApiKey <key>',
-        keys: {
-          customer: 'customer-key',
-          merchant: 'merchant-key',
-          agentCustomer: 'agent-key',
-          agentMerchant: 'agent-merchant-key',
-        },
+        ...(includeDemoCredentials ? { keys: demoApiKeys } : {}),
       },
       // Back-compat for older clients that read scheme/tokens only
       scheme: 'bearer',
-      tokens: {
-        customer: 'customer-token',
-        merchant: 'merchant-token',
-        agent: 'agent-token',
-        agentMerchant: 'agent-merchant-token',
-      },
+      ...(includeDemoCredentials ? { tokens: demoCompatTokens } : {}),
+      demoCredentials: includeDemoCredentials
+        ? 'enabled (ALLOW_DEMO_TOKENS=1 or NODE_ENV!==production)'
+        : 'disabled',
     },
     conventions: {
       idempotencyHeader: 'Idempotency-Key',

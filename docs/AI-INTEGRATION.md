@@ -10,7 +10,8 @@ GET /.well-known/ai-commerce.json
 
 Document includes:
 
-- Bearer opaque tokens, API keys (`X-API-Key`), and HS256 JWT (`sub` + `role` + agent `scopes`)
+- Auth schemes: Bearer opaque (demo only when enabled), API keys (`X-API-Key`), and HS256 JWT (`sub` + `role` + agent `scopes`)
+- When demo credentials are off, **no token/key values are listed** (`authentication.demoCredentials: "disabled"`)
 - Three-role RBAC with agent scopes (`agent:customer` / `agent:merchant` — no implicit merchant power)
 - Idempotency-Key convention
 - Structured error shape + common `errorCodes`
@@ -27,7 +28,7 @@ Document includes:
 5. **Audit** — `GET /api/agent/audit` (or `/api/merchant/audit`) with filters: `actor`, `role`, `method`, `pathPrefix`, `pathContains`, `status`, `code`, `traceId`, `since`, `until`, `limit`. Requires `agent:merchant` (or merchant role).  
 6. **Rate limit** — per `role:subject` token bucket; `429` + `RATE_LIMITED` + `Retry-After` when exhausted.  
 7. **Tracing** — send or read `X-Trace-Id` on every call; scrape `GET /metrics` for request counters.  
-8. **Auth** — prefer API key or short-lived JWT for agents; include `scopes: ["agent:customer"]` and/or `["agent:merchant"]`. Demo `agent-token` is shopping-only; use `agent-merchant-token` for merchant surfaces.
+8. **Auth** — prefer API key or short-lived JWT signed with server `JWT_SECRET` for agents; include `scopes: ["agent:customer"]` and/or `["agent:merchant"]`. **Production must set `JWT_SECRET`.** Demo opaque tokens (`agent-token` shopping-only; `agent-merchant-token` for merchant) exist only when `ALLOW_DEMO_TOKENS=1` or `NODE_ENV!=='production'`.
 
 ## Suggested agent flows
 

@@ -3,6 +3,7 @@ import type { HttpMethod, RequestContext } from './http.js'
 import { readJsonBody, sendJson, getIdempotencyKey } from './http.js'
 import {
   authenticate,
+  authHasDemoCredentials,
   type AccessPrincipal,
   type AuthConfig,
   requireRole,
@@ -238,7 +239,14 @@ export class Router {
       }
       if (method === 'GET' && url.pathname === '/.well-known/ai-commerce.json') {
         metricPath = '/.well-known/ai-commerce.json'
-        sendJson(res, 200, buildAiCommerceDiscovery(`http://${host}`), corsHeaders(traceId))
+        sendJson(
+          res,
+          200,
+          buildAiCommerceDiscovery(`http://${host}`, {
+            includeDemoCredentials: authHasDemoCredentials(this.auth),
+          }),
+          corsHeaders(traceId),
+        )
         status = 200
         return
       }

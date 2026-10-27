@@ -240,7 +240,7 @@ export function buildOpenApi() {
           type: 'http',
           scheme: 'bearer',
           description:
-            'Opaque demo tokens (customer-token | merchant-token | agent-token [agent:customer] | agent-merchant-token [agent:merchant]) or HS256 JWT with claims { sub, role, scopes? }',
+            'Opaque demo tokens when enabled (ALLOW_DEMO_TOKENS=1 or NODE_ENV!==production): customer-token | merchant-token | agent-token [agent:customer] | agent-merchant-token [agent:merchant]; or HS256 JWT signed with JWT_SECRET ({ sub, role, scopes? }). Production MUST set JWT_SECRET.',
         },
         ApiKeyAuth: {
           type: 'apiKey',
