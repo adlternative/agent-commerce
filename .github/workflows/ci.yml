@@ -22,5 +22,7 @@ jobs:
           JWT_SECRET: agent-commerce-ci-jwt-secret
           ALLOW_DEMO_TOKENS: '1'
         run: npm test
+      - name: MCP Streamable HTTP client smoke
+        run: npm run test:mcp:http
       - run: npm run openapi:check
       - run: npm run build

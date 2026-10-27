@@ -9,9 +9,47 @@ Also see [AI-INTEGRATION.md](./AI-INTEGRATION.md) for `/.well-known/ai-commerce.
 | Mode | Command | Notes |
 |------|---------|--------|
 | **stdio** (default) | `npm run mcp` | For Cursor / Claude Desktop |
-| **Streamable HTTP** (optional) | `MCP_HTTP_PORT=8790 npm run mcp:http` | Stateless per-request demo |
+| **Streamable HTTP** (optional) | `MCP_HTTP_PORT=8790 npm run mcp:http` | Stateless per-request demo (`sessionIdGenerator: undefined`) |
 
 Data file defaults to `data/commerce.json` (`DATA_PATH` overrides).
+
+CI runs a real-client smoke with the official SDK: `npm run test:mcp:http` (also wired in GitHub Actions).
+
+### Streamable HTTP client (official SDK)
+
+Prefer **stdio** for local IDE hosts; use **Streamable HTTP** when the agent talks over the network (or CI).
+
+```ts
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+
+const url = new URL(process.env.MCP_HTTP_URL ?? 'http://127.0.0.1:8790/')
+
+// Auth headers travel on every request via requestInit (Bearer JWT and/or API key).
+// This demo HTTP transport accepts them; wire verification when you front MCP with a gateway.
+const transport = new StreamableHTTPClientTransport(url, {
+  requestInit: {
+    headers: {
+      Authorization: `Bearer ${process.env.MCP_TOKEN ?? ''}`,
+      'X-API-Key': process.env.MCP_API_KEY ?? '',
+    },
+  },
+})
+
+const client = new Client({ name: 'my-agent', version: '1.0.0' })
+await client.connect(transport)
+
+const { tools } = await client.listTools()
+const search = await client.callTool({
+  name: 'search_products',
+  arguments: { q: 'mug' },
+})
+```
+
+Transport choice:
+
+- **stdio** — subprocess, no HTTP auth headers; use env / process identity.
+- **Streamable HTTP** — pass credentials in `requestInit.headers` as above (`Authorization`, `X-API-Key`, or both).
 
 ## Tools (17)
 
