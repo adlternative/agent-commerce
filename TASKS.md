@@ -27,6 +27,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-25 | Clean legacy skeleton issues #1–#8 | Done | #668 @ `c44c16a`; archive ISSUES.md; #1–#8 need user close (403); 33/183 + 3 e2e |
 | ACP-22 | Returns/refund UI + E2E | In progress | Customer 申请退货 (lines+reason); merchant approve/reject + restock; Playwright full chain |
 | ACP-24 | Merchant stock + promotions UI | In progress | Create-product `stock`; promotions list/create/deactivate; Playwright stock+满减 |
+| ACP-32 | Dockerfile without apt/tini (#682) | In progress | Drop runtime apt; compose `init: true` + node fetch healthcheck; CI docker build |
 | ACP-28 | MCP Streamable HTTP authentication (#676) | In progress | Reuse REST auth; merchant tool RBAC; smoke auth assertions |
 | ACP-30 | Docker JWT no insecure defaults (#680) | In progress | Require JWT_SECRET in compose; ALLOW_DEMO_TOKENS default 0; forged `dev-docker-change-me` → 401 |
 
