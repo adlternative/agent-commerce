@@ -2,8 +2,26 @@ import { useEffect, useState } from 'react'
 import { createMerchantApi, type Metrics, type Promotion } from '../api/merchant-client.js'
 import { formatCents } from '../api/format.js'
 import type { Order, Product, ReturnRequest, Stock } from '../api/types.js'
+import { validateInitialStock, validateThresholdOff } from './form-validation.js'
 
 const api = createMerchantApi()
+
+type PromoType = Promotion['type']
+
+function describePromo(p: Promotion): string {
+  switch (p.type) {
+    case 'threshold_off':
+      return `满减 · 满 ${formatCents(p.thresholdCents)} 减 ${formatCents(p.offCents)}`
+    case 'coupon_percent':
+      return `折扣 · ${p.percentOff}%${p.maxOffCents != null ? `（封顶 ${formatCents(p.maxOffCents)}）` : ''}`
+    case 'coupon_fixed':
+      return `立减 · ${formatCents(p.offCents)}`
+    default: {
+      const _exhaustive: never = p
+      return _exhaustive
+    }
+  }
+}
 
 export default function MerchantApp() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
@@ -11,27 +29,34 @@ export default function MerchantApp() {
   const [stocks, setStocks] = useState<Record<string, Stock>>({})
   const [orders, setOrders] = useState<Order[]>([])
   const [returns, setReturns] = useState<ReturnRequest[]>([])
+  const [promotions, setPromotions] = useState<Promotion[]>([])
   const [error, setError] = useState<string | null>(null)
   const [sku, setSku] = useState('NEW-SKU')
   const [name, setName] = useState('New Product')
   const [priceCents, setPriceCents] = useState(1999)
+  const [stock, setStock] = useState(10)
   const [agentNotes, setAgentNotes] = useState('Merchant-created SKU for agents.')
-  const [promoCode, setPromoCode] = useState('WELCOME100')
+  const [promoCode, setPromoCode] = useState('FULL100')
+  const [promoType, setPromoType] = useState<PromoType>('threshold_off')
+  const [promoThreshold, setPromoThreshold] = useState(2000)
   const [promoOff, setPromoOff] = useState(100)
+  const [promoPercent, setPromoPercent] = useState(10)
 
   async function refresh() {
     setError(null)
     try {
-      const [m, p, o, r] = await Promise.all([
+      const [m, p, o, r, promos] = await Promise.all([
         api.metrics(),
         api.listProducts(),
         api.listOrders(),
         api.listReturns(),
+        api.listPromotions(),
       ])
       setMetrics(m)
       setProducts(p)
       setOrders(o)
       setReturns(r)
+      setPromotions(promos)
       const stockEntries = await Promise.all(
         p.map(async (prod) => [prod.id, await api.inventory(prod.id)] as const),
       )
@@ -46,6 +71,11 @@ export default function MerchantApp() {
   }, [])
 
   async function createProduct() {
+    const stockCheck = validateInitialStock(stock)
+    if (!stockCheck.ok) {
+      setError(stockCheck.message)
+      return
+    }
     try {
       await api.upsertProduct({
         sku,
@@ -53,7 +83,9 @@ export default function MerchantApp() {
         priceCents,
         agentNotes,
         tags: ['merchant'],
+        stock: stockCheck.stock,
       })
+      setError(null)
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : '创建失败')
@@ -89,18 +121,73 @@ export default function MerchantApp() {
     }
   }
 
-  async function savePromo() {
-    const promo: Promotion = {
-      code: promoCode,
+  function buildPromo(): Promotion | null {
+    const code = promoCode.trim()
+    if (!code) {
+      setError('促销代码必填')
+      return null
+    }
+    if (promoType === 'threshold_off') {
+      const check = validateThresholdOff({
+        code,
+        thresholdCents: promoThreshold,
+        offCents: promoOff,
+      })
+      if (!check.ok) {
+        setError(check.message)
+        return null
+      }
+      return {
+        code,
+        type: 'threshold_off',
+        thresholdCents: check.thresholdCents!,
+        offCents: check.offCents!,
+        active: true,
+      }
+    }
+    if (promoType === 'coupon_percent') {
+      if (!Number.isInteger(promoPercent) || promoPercent < 1 || promoPercent > 100) {
+        setError('折扣百分比须为 1–100 的整数')
+        return null
+      }
+      return {
+        code,
+        type: 'coupon_percent',
+        percentOff: promoPercent,
+        active: true,
+      }
+    }
+    if (!Number.isInteger(promoOff) || promoOff < 0) {
+      setError('优惠金额不能为负数')
+      return null
+    }
+    return {
+      code,
       type: 'coupon_fixed',
       offCents: promoOff,
       active: true,
     }
+  }
+
+  async function savePromo() {
+    const promo = buildPromo()
+    if (!promo) return
     try {
       await api.upsertPromotion(promo)
+      setError(null)
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : '促销保存失败')
+    }
+  }
+
+  async function deactivatePromo(promo: Promotion) {
+    try {
+      await api.upsertPromotion({ ...promo, active: false })
+      setError(null)
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '停用失败')
     }
   }
 
@@ -117,7 +204,11 @@ export default function MerchantApp() {
         </nav>
       </header>
 
-      {error ? <p className="banner error">{error}</p> : null}
+      {error ? (
+        <p className="banner error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <section className="section">
         <h2>指标看板</h2>
@@ -162,6 +253,18 @@ export default function MerchantApp() {
               type="number"
               value={priceCents}
               onChange={(e) => setPriceCents(Number(e.target.value))}
+            />
+          </label>
+          <label>
+            初始库存
+            <input
+              type="number"
+              min={0}
+              step={1}
+              required
+              aria-label="初始库存"
+              value={stock}
+              onChange={(e) => setStock(Number(e.target.value))}
             />
           </label>
           <label>
@@ -248,25 +351,87 @@ export default function MerchantApp() {
         )}
       </section>
 
-      <section className="section">
+      <section className="section" id="promotions-panel">
         <h2>促销配置</h2>
         <div className="form-grid">
           <label>
             代码
-            <input value={promoCode} onChange={(e) => setPromoCode(e.target.value)} />
-          </label>
-          <label>
-            立减（分）
             <input
-              type="number"
-              value={promoOff}
-              onChange={(e) => setPromoOff(Number(e.target.value))}
+              aria-label="促销代码"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value)}
             />
           </label>
+          <label>
+            类型
+            <select
+              aria-label="促销类型"
+              value={promoType}
+              onChange={(e) => setPromoType(e.target.value as PromoType)}
+            >
+              <option value="threshold_off">满减 (threshold_off)</option>
+              <option value="coupon_fixed">立减 (coupon_fixed)</option>
+              <option value="coupon_percent">折扣 (coupon_percent)</option>
+            </select>
+          </label>
+          {promoType === 'threshold_off' ? (
+            <label>
+              门槛（分）
+              <input
+                type="number"
+                min={0}
+                step={1}
+                aria-label="满减门槛"
+                value={promoThreshold}
+                onChange={(e) => setPromoThreshold(Number(e.target.value))}
+              />
+            </label>
+          ) : null}
+          {promoType === 'coupon_percent' ? (
+            <label>
+              折扣（%）
+              <input
+                type="number"
+                min={1}
+                max={100}
+                step={1}
+                aria-label="折扣百分比"
+                value={promoPercent}
+                onChange={(e) => setPromoPercent(Number(e.target.value))}
+              />
+            </label>
+          ) : (
+            <label>
+              优惠（分）
+              <input
+                type="number"
+                min={0}
+                step={1}
+                aria-label="优惠金额"
+                value={promoOff}
+                onChange={(e) => setPromoOff(Number(e.target.value))}
+              />
+            </label>
+          )}
         </div>
         <button type="button" className="primary" onClick={() => void savePromo()}>
-          保存固定券
+          创建促销
         </button>
+        <ul className="product-list" aria-label="促销列表">
+          {promotions.map((p) => (
+            <li key={p.code} className="merchant-row">
+              <div>
+                <strong>{p.code}</strong> · {describePromo(p)}
+                <div className="muted">{p.active ? '生效中' : '已停用'}</div>
+              </div>
+              {p.active ? (
+                <button type="button" onClick={() => void deactivatePromo(p)}>
+                  停用
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   )

@@ -26,6 +26,7 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-23 | MCP Streamable HTTP real client smoke | Done | #669 @ `714503a`; SDK StreamableHTTP client smoke; `test:mcp:http` + CI; 36/189 + 3 e2e |
 | ACP-25 | Clean legacy skeleton issues #1–#8 | Done | #668 @ `c44c16a`; archive ISSUES.md; #1–#8 need user close (403); 33/183 + 3 e2e |
 | ACP-22 | Returns/refund UI + E2E | In progress | Customer 申请退货 (lines+reason); merchant approve/reject + restock; Playwright full chain |
+| ACP-24 | Merchant stock + promotions UI | In progress | Create-product `stock`; promotions list/create/deactivate; Playwright stock+满减 |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.

@@ -143,6 +143,7 @@ export function buildAiCommerceDiscovery(
         'POST /api/merchant/orders/:id/ship',
         'POST /api/merchant/orders/:id/receive',
         'POST /api/merchant/reservations/release-expired',
+        'GET /api/merchant/promotions',
         'POST /api/merchant/promotions',
       ],
       webhooks: ['POST /api/webhooks/payment'],

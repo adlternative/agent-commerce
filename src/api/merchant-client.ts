@@ -104,6 +104,7 @@ export function createMerchantApi(baseUrl = '') {
       request<Order>('POST', `/api/merchant/orders/${orderId}/deliver`, {
         idempotencyKey: newKey('m-deliver'),
       }),
+    listPromotions: () => request<Promotion[]>('GET', '/api/merchant/promotions'),
     upsertPromotion: (promo: Promotion) =>
       request<Promotion>('POST', '/api/merchant/promotions', {
         body: promo,
