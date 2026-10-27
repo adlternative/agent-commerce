@@ -17,8 +17,8 @@ import {
   UpdateItemSchema,
 } from './request-schemas.js'
 
-function pageProducts(
-  ranked: Awaited<ReturnType<CommerceService['rankProducts']>>,
+function pageProducts<T extends { id: string }>(
+  ranked: Array<{ product: T; score: number }>,
   query: URLSearchParams,
 ) {
   if (query.has('cursor') || query.has('limit')) {
@@ -54,7 +54,7 @@ export function registerRoutes(
 ): void {
   // ── Customer ──────────────────────────────────────────────
   router.on('GET', '/api/customer/products', ['customer', 'agent:customer'], async (ctx) => {
-    const ranked = await commerce.rankProducts({
+    const ranked = await commerce.rankProductsWithAvailability({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
     })
@@ -284,7 +284,7 @@ export function registerRoutes(
   // ── Agent (aliases for LLM-friendly paths; same handlers) ─
 
   router.on('GET', '/api/agent/products', ['agent:customer'], async (ctx) => {
-    const ranked = await commerce.rankProducts({
+    const ranked = await commerce.rankProductsWithAvailability({
       q: ctx.query.get('q') ?? undefined,
       tag: ctx.query.get('tag') ?? undefined,
     })

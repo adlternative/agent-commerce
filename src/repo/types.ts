@@ -48,4 +48,9 @@ export interface CommerceRepository {
    * Throws DomainError (`STORE_NOT_READY` / store read-write failures) on failure.
    */
   checkReady(): Promise<void>
+  /**
+   * Batch stock for many products in one lookup (SQL `WHERE product_id IN (...)`
+   * or a single in-memory filter). Never N+1 per productId.
+   */
+  getStockByProductIds(productIds: readonly string[]): Promise<StockLevel[]>
 }

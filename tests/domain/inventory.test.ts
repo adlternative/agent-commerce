@@ -3,6 +3,7 @@ import {
   InventoryLedger,
   adjustOnHand,
   availableQty,
+  batchAvailableByProductIds,
   commitStock,
   createReservation,
   DEFAULT_RESERVATION_TTL_MS,
@@ -17,6 +18,20 @@ describe('inventory pure ops', () => {
 
   it('computes available', () => {
     expect(availableQty(base)).toBe(8)
+  })
+
+  it('batchAvailableByProductIds maps many ids in one pass (no N+1)', () => {
+    const stock = [
+      { productId: 'a', onHand: 5, reserved: 2 },
+      { productId: 'b', onHand: 0, reserved: 0 },
+      { productId: 'c', onHand: 3, reserved: 1 },
+    ]
+    const map = batchAvailableByProductIds(stock, ['a', 'b', 'missing', 'c'])
+    expect(map.get('a')).toBe(3)
+    expect(map.get('b')).toBe(0)
+    expect(map.get('c')).toBe(2)
+    expect(map.get('missing')).toBe(0)
+    expect(map.size).toBe(4)
   })
 
   it('reserves without mutating input', () => {

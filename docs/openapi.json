@@ -111,6 +111,11 @@
               "updatedAt": {
                 "type": "string",
                 "format": "date-time"
+              },
+              "available": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Sellable units (onHand − reserved). Present on GET /api/agent/products and GET /api/customer/products list items."
               }
             },
             "required": [
@@ -635,7 +640,7 @@
     },
     "/api/customer/products": {
       "get": {
-        "summary": "List / search products",
+        "summary": "List / search products (each item includes available sellable qty)",
         "tags": [
           "customer"
         ],
@@ -685,7 +690,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Product"
                   },
-                  "description": "Bare product array by default. When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify)."
+                  "description": "Bare product array by default (each item includes integer `available`). When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify)."
                 }
               }
             }
@@ -1804,7 +1809,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Product"
                   },
-                  "description": "Bare product array by default. When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify)."
+                  "description": "Bare product array by default (each item includes integer `available`). When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify)."
                 }
               }
             }
@@ -3002,7 +3007,7 @@
     },
     "/api/agent/products": {
       "get": {
-        "summary": "Agent product search",
+        "summary": "Agent product search (each item includes available sellable qty)",
         "tags": [
           "agent"
         ],
@@ -3055,7 +3060,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Product"
                   },
-                  "description": "Bare product array by default. When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify)."
+                  "description": "Bare product array by default (each item includes integer `available`). When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify)."
                 }
               }
             }

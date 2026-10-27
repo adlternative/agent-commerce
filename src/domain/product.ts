@@ -19,6 +19,21 @@ export const ProductSchema = z.object({
 
 export type Product = z.infer<typeof ProductSchema>
 
+/**
+ * List responses may include sellable qty. Optional so get-by-id / upsert stay valid.
+ * `available > 0` ⇒ sellable; add-to-cart at 0 ⇒ 409 INSUFFICIENT_STOCK.
+ */
+export const ProductWithOptionalAvailableSchema = ProductSchema.extend({
+  available: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'Sellable units (onHand − reserved). Present on GET /api/agent/products and GET /api/customer/products list items.',
+    ),
+})
+
 export const UpsertProductInputSchema = z
   .object({
     id: z.string().min(1).optional(),

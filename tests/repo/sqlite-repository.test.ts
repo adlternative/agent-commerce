@@ -52,6 +52,33 @@ describe('SqliteRepository', () => {
     expect((await svc2.checkInventory(product.id)).onHand).toBe(4)
   })
 
+  it('getStockByProductIds uses one WHERE IN for 50 ids (no N+1)', async () => {
+    const { repo } = await tmpSqlite()
+    const svc = new CommerceService(repo)
+    const ids: string[] = []
+    for (let i = 0; i < 50; i++) {
+      const p = await svc.upsertProduct(
+        { sku: `IN-${i}`, name: `Batch ${i}`, priceCents: 100 + i },
+        `batch-upsert-${i}`,
+      )
+      await svc.adjustStock(p.id, i % 5, `batch-stock-${i}`)
+      ids.push(p.id)
+    }
+
+    let prepareCount = 0
+    const db = (repo as unknown as { db: { prepare: (sql: string) => unknown } }).db
+    const origPrepare = db.prepare.bind(db)
+    db.prepare = (sql: string) => {
+      if (sql.includes('WHERE product_id IN')) prepareCount += 1
+      return origPrepare(sql)
+    }
+
+    const rows = await repo.getStockByProductIds(ids)
+    expect(prepareCount).toBe(1)
+    expect(rows).toHaveLength(50)
+    expect(rows.every((r) => ids.includes(r.productId))).toBe(true)
+  })
+
   it('enforces unique idempotency (scope, key)', async () => {
     const { repo } = await tmpSqlite()
     await repo.transaction((db) => {

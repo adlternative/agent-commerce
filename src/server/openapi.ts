@@ -4,7 +4,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 import { CartSchema } from '../domain/cart.js'
 import { ErrorBodySchema } from '../domain/errors.js'
 import { OrderSchema } from '../domain/order.js'
-import { ProductSchema } from '../domain/product.js'
+import { ProductSchema, ProductWithOptionalAvailableSchema } from '../domain/product.js'
 import { PromotionSchema } from '../domain/promotion.js'
 import { ReturnRequestSchema } from '../domain/return.js'
 import { StockLevelSchema } from '../domain/inventory.js'
@@ -127,7 +127,7 @@ const productListSchema = {
   type: 'array',
   items: { $ref: '#/components/schemas/Product' },
   description:
-    'Bare product array by default. When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify).',
+    'Bare product array by default (each item includes integer `available`). When cursor/limit are passed, response is { items, nextCursor, hasMore } (ACP-16 will unify).',
 }
 
 const orderListSchema = {
@@ -238,7 +238,7 @@ export function buildOpenApi() {
       },
       schemas: {
         Error: zodSchema(ErrorBodySchema, 'Error'),
-        Product: zodSchema(ProductSchema, 'Product'),
+        Product: zodSchema(ProductWithOptionalAvailableSchema, 'Product'),
         Order: zodSchema(OrderSchema, 'Order'),
         Cart: zodSchema(CartSchema, 'Cart'),
         Promotion: zodSchema(PromotionSchema, 'Promotion'),
@@ -325,7 +325,7 @@ export function buildOpenApi() {
       // ── Customer ──────────────────────────────────────────
       '/api/customer/products': pathItem({
         get: {
-          summary: 'List / search products',
+          summary: 'List / search products (each item includes available sellable qty)',
           tags: ['customer'],
           security: bearer,
           parameters: [
@@ -645,7 +645,7 @@ export function buildOpenApi() {
       }),
       '/api/agent/products': pathItem({
         get: {
-          summary: 'Agent product search',
+          summary: 'Agent product search (each item includes available sellable qty)',
           tags: ['agent'],
           security: apiKeyOrBearer,
           parameters: [

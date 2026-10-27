@@ -18,6 +18,7 @@ import { rankProducts, type ScoredProduct } from '../domain/search.js'
 import {
   adjustOnHand,
   availableQty,
+  batchAvailableByProductIds,
   commitStock,
   createReservation,
   isReservationExpired,
@@ -57,6 +58,14 @@ import {
   createReturnRequest,
   type ReturnRequest,
 } from '../domain/return.js'
+
+/** Catalog product with sellable qty (onHand − reserved). */
+export type ProductWithAvailability = Product & { available: number }
+
+export type ScoredProductWithAvailability = {
+  product: ProductWithAvailability
+  score: number
+}
 
 function hashRequest(payload: unknown): string {
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 32)
@@ -102,6 +111,32 @@ export class CommerceService {
       ...query,
       activeOnly: query.activeOnly !== false,
     })
+  }
+
+  /**
+   * Ranked catalog with batch `available` on each item (no per-product inventory round-trip).
+   * Products from one `repo.read()`; stock via `getStockByProductIds` (SQLite:
+   * `WHERE product_id IN (...)` — one statement for the whole list, not N+1).
+   * Listing ~50 products → products read + one stock IN query (2 SQL-level lookups).
+   */
+  async rankProductsWithAvailability(
+    query: { q?: string; tag?: string; activeOnly?: boolean } = {},
+  ): Promise<ScoredProductWithAvailability[]> {
+    const db = await this.repo.read()
+    const ranked = rankProducts(db.products, {
+      ...query,
+      activeOnly: query.activeOnly !== false,
+    })
+    const ids = ranked.map((h) => h.product.id)
+    const stockRows = await this.repo.getStockByProductIds(ids)
+    const avail = batchAvailableByProductIds(stockRows, ids)
+    return ranked.map((h) => ({
+      score: h.score,
+      product: {
+        ...h.product,
+        available: avail.get(h.product.id) ?? 0,
+      },
+    }))
   }
 
   async getMetrics(): Promise<{

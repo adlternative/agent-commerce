@@ -32,6 +32,35 @@ async function seedService(onHand = 10) {
 }
 
 describe('CommerceService', () => {
+  it('rankProductsWithAvailability attaches available via one batch stock lookup', async () => {
+    const repo = new MemoryRepository()
+    const svc = new CommerceService(repo)
+    const calls: string[] = []
+    const orig = repo.getStockByProductIds.bind(repo)
+    repo.getStockByProductIds = async (ids) => {
+      calls.push(`batch:${ids.length}`)
+      return orig(ids)
+    }
+
+    const a = await svc.upsertProduct(
+      { sku: 'A-1', name: 'Alpha', priceCents: 100 },
+      'avail-a',
+    )
+    const b = await svc.upsertProduct(
+      { sku: 'B-1', name: 'Beta', priceCents: 200 },
+      'avail-b',
+    )
+    await svc.adjustStock(a.id, 7, 'avail-a-stock')
+    // b stays available=0
+
+    const ranked = await svc.rankProductsWithAvailability({})
+    expect(calls).toEqual([`batch:${ranked.length}`])
+    expect(calls).toHaveLength(1)
+    const byId = new Map(ranked.map((h) => [h.product.id, h.product.available]))
+    expect(byId.get(a.id)).toBe(7)
+    expect(byId.get(b.id)).toBe(0)
+  })
+
   it('upserts product idempotently', async () => {
     const { svc, product } = await seedService()
     const again = await svc.upsertProduct(

@@ -7,6 +7,8 @@ export type Product = {
   tags: string[]
   agentNotes: string
   active: boolean
+  /** Sellable units on list responses (onHand − reserved). */
+  available?: number
 }
 
 export type Cart = {

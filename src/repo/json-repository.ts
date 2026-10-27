@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { emptyDb, type CommerceDb, type CommerceRepository } from './types.js'
 import { DomainError } from '../domain/errors.js'
+import type { StockLevel } from '../domain/inventory.js'
 
 /**
  * Single-file JSON repository.
@@ -70,6 +71,14 @@ export class JsonFileRepository implements CommerceRepository {
     }
   }
 
+  /** Single in-memory filter — no per-id round-trips. */
+  async getStockByProductIds(productIds: readonly string[]): Promise<StockLevel[]> {
+    if (productIds.length === 0) return []
+    const want = new Set(productIds)
+    const db = await this.read()
+    return db.stock.filter((s) => want.has(s.productId))
+  }
+
   private async persist(db: CommerceDb): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true })
     const tmp = `${this.path}.${process.pid}.${Date.now()}.tmp`
@@ -117,5 +126,13 @@ export class MemoryRepository implements CommerceRepository {
     await this.transaction((db) => {
       void db
     })
+  }
+
+  /** Single in-memory filter — no per-id round-trips. */
+  async getStockByProductIds(productIds: readonly string[]): Promise<StockLevel[]> {
+    if (productIds.length === 0) return []
+    const want = new Set(productIds)
+    const db = await this.read()
+    return db.stock.filter((s) => want.has(s.productId))
   }
 }

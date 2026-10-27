@@ -93,8 +93,8 @@ function statusForCode(code: string): number {
     case 'PAYMENT_NOT_FOUND':
       return 404
     case 'IDEMPOTENCY_KEY_REUSE':
-      return 409
     case 'INSUFFICIENT_STOCK':
+      return 409
     case 'EMPTY_CART':
     case 'INVALID_TRANSITION':
     case 'ORDER_NOT_PAYABLE':
