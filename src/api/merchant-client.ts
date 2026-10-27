@@ -45,22 +45,32 @@ export function createMerchantApi(baseUrl = '') {
     }
     if (opts.body !== undefined) headers['content-type'] = 'application/json'
     if (opts.idempotencyKey) headers['idempotency-key'] = opts.idempotencyKey
-    const res = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    })
-    const text = await res.text()
-    const json = text ? (JSON.parse(text) as Record<string, unknown>) : {}
-    if (!res.ok) {
-      throw new ApiError(res.status, {
+
+    // Retry 429s (shared e2e/demo merchant token bucket) using Retry-After.
+    let lastError: ApiError | undefined
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const res = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers,
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      })
+      const text = await res.text()
+      const json = text ? (JSON.parse(text) as Record<string, unknown>) : {}
+      if (res.ok) return json as T
+
+      const err = new ApiError(res.status, {
         code: String(json.code ?? 'HTTP_ERROR'),
         message: String(json.message ?? res.statusText),
         hint: json.hint as string | undefined,
         retryable: Boolean(json.retryable),
       })
+      lastError = err
+      if (res.status !== 429 || !err.retryable || attempt === 5) break
+      const retryAfterHeader = Number(res.headers.get('retry-after') ?? '1')
+      const waitSec = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0 ? retryAfterHeader : 1
+      await new Promise((r) => setTimeout(r, waitSec * 1000))
     }
-    return json as T
+    throw lastError!
   }
 
   return {

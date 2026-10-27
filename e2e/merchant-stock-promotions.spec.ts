@@ -1,14 +1,27 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+/** Merchant refresh is chatty; prior e2e may empty the shared rate-limit bucket. */
+async function openMerchantReady(page: Page, heading: string | RegExp) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await page.goto('/#/merchant')
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible({
+      timeout: 15_000,
+    })
+    const alert = page.getByRole('alert')
+    if (!(await alert.isVisible().catch(() => false))) return
+    const text = (await alert.textContent()) ?? ''
+    if (!/too many requests|RATE_LIMITED/i.test(text)) return
+    await page.waitForTimeout(2000 + attempt * 500)
+  }
+  await expect(page.getByRole('alert')).not.toContainText(/too many requests/i)
+}
 
 test.describe('Merchant stock + promotions UI', () => {
   test('create product with stock → storefront can add to cart immediately', async ({ page }) => {
     const sku = `E2E-STK-${Date.now()}`
     const name = `Stocked Widget ${Date.now()}`
 
-    await page.goto('/#/merchant')
-    await expect(page.getByRole('heading', { name: '商品 CRUD' })).toBeVisible({
-      timeout: 15_000,
-    })
+    await openMerchantReady(page, '商品 CRUD')
 
     await page.locator('label', { hasText: 'SKU' }).locator('input').fill(sku)
     await page.locator('label', { hasText: '名称' }).locator('input').fill(name)
@@ -40,19 +53,24 @@ test.describe('Merchant stock + promotions UI', () => {
     const thresholdCents = 2000
     const offCents = 500
 
-    await page.goto('/#/merchant')
-    await expect(page.getByRole('heading', { name: '促销配置' })).toBeVisible({
-      timeout: 15_000,
-    })
+    await openMerchantReady(page, '促销配置')
 
     await page.getByLabel('促销代码').fill(code)
     await page.getByLabel('促销类型').selectOption('threshold_off')
     await page.getByLabel('满减门槛').fill(String(thresholdCents))
     await page.getByLabel('优惠金额').fill(String(offCents))
-    await page.getByRole('button', { name: '创建促销' }).click()
 
-    const promoRow = page.locator('li.merchant-row', { hasText: code })
-    await expect(promoRow).toBeVisible({ timeout: 15_000 })
+    const promoRow = page.locator('#promotions-panel li.merchant-row', { hasText: code })
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await page.getByRole('button', { name: '创建促销' }).click()
+      try {
+        await expect(promoRow).toBeVisible({ timeout: 8_000 })
+        break
+      } catch {
+        if (attempt === 3) throw new Error(`promo ${code} did not appear after create`)
+        await page.waitForTimeout(2000)
+      }
+    }
     await expect(promoRow).toContainText('满减')
     await expect(promoRow).toContainText('生效中')
 
@@ -73,10 +91,7 @@ test.describe('Merchant stock + promotions UI', () => {
   test('rejects negative stock, negative threshold, and discount > threshold', async ({
     page,
   }) => {
-    await page.goto('/#/merchant')
-    await expect(page.getByRole('heading', { name: '商品 CRUD' })).toBeVisible({
-      timeout: 15_000,
-    })
+    await openMerchantReady(page, '商品 CRUD')
 
     await page.getByLabel('初始库存').fill('-3')
     await page.getByRole('button', { name: '创建 / 更新商品' }).click()

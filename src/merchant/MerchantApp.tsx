@@ -44,26 +44,34 @@ export default function MerchantApp() {
 
   async function refresh() {
     setError(null)
-    try {
-      const [m, p, o, r, promos] = await Promise.all([
-        api.metrics(),
-        api.listProducts(),
-        api.listOrders(),
-        api.listReturns(),
-        api.listPromotions(),
-      ])
-      setMetrics(m)
-      setProducts(p)
-      setOrders(o)
-      setReturns(r)
-      setPromotions(promos)
-      const stockEntries = await Promise.all(
-        p.map(async (prod) => [prod.id, await api.inventory(prod.id)] as const),
-      )
-      setStocks(Object.fromEntries(stockEntries))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '加载失败')
+    let lastErr: unknown
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const [m, p, o, r, promos] = await Promise.all([
+          api.metrics(),
+          api.listProducts(),
+          api.listOrders(),
+          api.listReturns(),
+          api.listPromotions(),
+        ])
+        setMetrics(m)
+        setProducts(p)
+        setOrders(o)
+        setReturns(r)
+        setPromotions(promos)
+        const stockEntries = await Promise.all(
+          p.map(async (prod) => [prod.id, await api.inventory(prod.id)] as const),
+        )
+        setStocks(Object.fromEntries(stockEntries))
+        return
+      } catch (e) {
+        lastErr = e
+        const msg = e instanceof Error ? e.message : ''
+        if (!/too many requests|RATE_LIMITED/i.test(msg) || attempt === 3) break
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)))
+      }
     }
+    setError(lastErr instanceof Error ? lastErr.message : '加载失败')
   }
 
   useEffect(() => {
@@ -77,7 +85,7 @@ export default function MerchantApp() {
       return
     }
     try {
-      await api.upsertProduct({
+      const product = await api.upsertProduct({
         sku,
         name,
         priceCents,
@@ -85,8 +93,28 @@ export default function MerchantApp() {
         tags: ['merchant'],
         stock: stockCheck.stock,
       })
+      setProducts((prev) => {
+        const idx = prev.findIndex((x) => x.id === product.id || x.sku === product.sku)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = product
+          return next
+        }
+        return [product, ...prev]
+      })
+      if (stockCheck.stock !== undefined) {
+        setStocks((prev) => ({
+          ...prev,
+          [product.id]: {
+            productId: product.id,
+            onHand: stockCheck.stock!,
+            reserved: 0,
+            available: stockCheck.stock!,
+          },
+        }))
+      }
       setError(null)
-      await refresh()
+      void refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : '创建失败')
     }
@@ -173,9 +201,18 @@ export default function MerchantApp() {
     const promo = buildPromo()
     if (!promo) return
     try {
-      await api.upsertPromotion(promo)
+      const saved = await api.upsertPromotion(promo)
+      setPromotions((prev) => {
+        const idx = prev.findIndex((p) => p.code.toUpperCase() === saved.code.toUpperCase())
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = saved
+          return next
+        }
+        return [...prev, saved]
+      })
       setError(null)
-      await refresh()
+      void refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : '促销保存失败')
     }
@@ -183,9 +220,12 @@ export default function MerchantApp() {
 
   async function deactivatePromo(promo: Promotion) {
     try {
-      await api.upsertPromotion({ ...promo, active: false })
+      const saved = await api.upsertPromotion({ ...promo, active: false })
+      setPromotions((prev) =>
+        prev.map((p) => (p.code.toUpperCase() === saved.code.toUpperCase() ? saved : p)),
+      )
       setError(null)
-      await refresh()
+      void refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : '停用失败')
     }
