@@ -291,4 +291,97 @@ describe('HTTP API integration', () => {
       cancelledOrderIds: expect.any(Array),
     })
   })
+
+  it('creates product with stock as initial onHand and rejects unknown fields', async () => {
+    const created = await api(baseUrl, 'POST', '/api/merchant/products', {
+      token: 'merchant-token',
+      idempotencyKey: 'stock-prod-1',
+      body: {
+        sku: 'STOCK-01',
+        name: 'Stocked Widget',
+        priceCents: 1_000,
+        stock: 7,
+      },
+    })
+    expect(created.status).toBe(200)
+    expect(created.json.onHand).toBe(7)
+    expect(created.json.available).toBe(7)
+
+    const listed = await api(baseUrl, 'GET', '/api/merchant/products?activeOnly=false', {
+      token: 'merchant-token',
+    })
+    expect(listed.status).toBe(200)
+    const row = (listed.json as unknown as Json[]).find((p) => p.sku === 'STOCK-01')
+    expect(row).toBeTruthy()
+
+    const inv = await api(baseUrl, 'GET', `/api/merchant/inventory/${created.json.id}`, {
+      token: 'merchant-token',
+    })
+    expect(inv.status).toBe(200)
+    expect(inv.json).toMatchObject({ onHand: 7, available: 7, reserved: 0 })
+
+    const omitted = await api(baseUrl, 'POST', '/api/merchant/products', {
+      token: 'merchant-token',
+      idempotencyKey: 'stock-prod-default',
+      body: {
+        sku: 'STOCK-00',
+        name: 'Zero Default',
+        priceCents: 500,
+      },
+    })
+    expect(omitted.status).toBe(200)
+    expect(omitted.json.onHand).toBe(0)
+
+    const unknown = await api(baseUrl, 'POST', '/api/merchant/products', {
+      token: 'merchant-token',
+      idempotencyKey: 'stock-prod-unknown',
+      body: {
+        sku: 'STOCK-BAD',
+        name: 'Bad',
+        priceCents: 100,
+        onHand: 9,
+      },
+    })
+    expect(unknown.status).toBe(400)
+    expect(unknown.json).toMatchObject({
+      code: 'UNKNOWN_FIELD',
+      retryable: false,
+    })
+    expect(String(unknown.json.hint)).toContain('onHand')
+  })
+
+  it('places order after creating product with stock (no separate restock)', async () => {
+    const created = await api(baseUrl, 'POST', '/api/merchant/products', {
+      token: 'merchant-token',
+      idempotencyKey: 'stock-flow-prod',
+      body: {
+        sku: 'FLOW-01',
+        name: 'Flow Widget',
+        priceCents: 800,
+        stock: 3,
+      },
+    })
+    expect(created.status).toBe(200)
+    expect(created.json.onHand).toBe(3)
+    const pid = created.json.id as string
+
+    const cart = await api(baseUrl, 'POST', '/api/customer/carts', {
+      idempotencyKey: 'stock-flow-cart',
+      body: { customerId: 'cust_stock_flow' },
+    })
+    expect(cart.status).toBe(200)
+
+    const added = await api(baseUrl, 'POST', `/api/customer/carts/${cart.json.id}/items`, {
+      idempotencyKey: 'stock-flow-add',
+      body: { productId: pid, quantity: 2 },
+    })
+    expect(added.status).toBe(200)
+
+    const order = await api(baseUrl, 'POST', '/api/customer/orders', {
+      idempotencyKey: 'stock-flow-order',
+      body: { cartId: cart.json.id },
+    })
+    expect(order.status).toBe(200)
+    expect(order.json.status).toBe('created')
+  })
 })

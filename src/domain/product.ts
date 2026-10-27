@@ -19,18 +19,42 @@ export const ProductSchema = z.object({
 
 export type Product = z.infer<typeof ProductSchema>
 
-export const UpsertProductInputSchema = z.object({
-  id: z.string().min(1).optional(),
-  sku: z.string().min(1),
-  name: z.string().min(1),
-  description: z.string().optional(),
-  priceCents: CentsSchema,
-  tags: z.array(z.string()).optional(),
-  agentNotes: z.string().optional(),
-  active: z.boolean().optional(),
-})
+export const UpsertProductInputSchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    sku: z.string().min(1),
+    name: z.string().min(1),
+    description: z.string().optional(),
+    priceCents: CentsSchema,
+    tags: z.array(z.string()).optional(),
+    agentNotes: z.string().optional(),
+    active: z.boolean().optional(),
+    /**
+     * Initial onHand when creating a product. Omitted → 0.
+     * On update, when provided, sets absolute onHand (must be ≥ reserved).
+     */
+    stock: z.number().int().nonnegative().optional(),
+  })
+  .strict()
 
 export type UpsertProductInput = z.infer<typeof UpsertProductInputSchema>
+
+/** Parse upsert body; unknown keys → structured UNKNOWN_FIELD 400 (not silent drop). */
+export function parseUpsertProductInput(raw: unknown): UpsertProductInput {
+  const result = UpsertProductInputSchema.safeParse(raw)
+  if (result.success) return result.data
+
+  const unknown = result.error.issues.filter((i) => i.code === 'unrecognized_keys')
+  if (unknown.length > 0) {
+    const keys = unknown
+      .flatMap((i) => ('keys' in i && Array.isArray(i.keys) ? (i.keys as string[]) : []))
+      .filter(Boolean)
+    throw new DomainError('UNKNOWN_FIELD', 'request contains unknown fields', {
+      hint: keys.length > 0 ? `unknown fields: ${keys.join(', ')}` : result.error.message,
+    })
+  }
+  throw result.error
+}
 
 export function parseProduct(raw: unknown): Product {
   const result = ProductSchema.safeParse(raw)

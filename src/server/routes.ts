@@ -2,6 +2,7 @@ import type { CommerceService } from '../services/commerce.js'
 import type { Router } from './router.js'
 import type { RequestContext } from './http.js'
 import { DomainError } from '../domain/errors.js'
+import { parseUpsertProductInput } from '../domain/product.js'
 import { paginate, paginateStable } from '../ai/pagination.js'
 import type { AuditLog } from '../ai/audit.js'
 import {
@@ -14,7 +15,6 @@ import {
   PromoCodeSchema,
   PromotionSchema,
   UpdateItemSchema,
-  UpsertProductInputSchema,
 } from './request-schemas.js'
 
 function pageProducts(
@@ -182,12 +182,12 @@ export function registerRoutes(
   })
 
   router.on('POST', '/api/merchant/products', ['merchant', 'agent:merchant'], async (ctx) => {
-    const body = UpsertProductInputSchema.parse(ctx.body)
+    const body = parseUpsertProductInput(ctx.body)
     return commerce.upsertProduct(body, requireKey(ctx.idempotencyKey))
   })
 
   router.on('PUT', '/api/merchant/products/:id', ['merchant', 'agent:merchant'], async (ctx) => {
-    const body = UpsertProductInputSchema.parse({
+    const body = parseUpsertProductInput({
       ...(ctx.body as object),
       id: ctx.params.id,
     })
@@ -371,7 +371,7 @@ export function registerRoutes(
   })
 
   router.on('POST', '/api/agent/products', ['agent:merchant'], async (ctx) => {
-    const body = UpsertProductInputSchema.parse(ctx.body)
+    const body = parseUpsertProductInput(ctx.body)
     return commerce.upsertProduct(body, requireKey(ctx.idempotencyKey))
   })
 

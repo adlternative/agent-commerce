@@ -102,6 +102,7 @@ function statusForCode(code: string): number {
     case 'PROMO_INACTIVE':
     case 'PRODUCT_INACTIVE':
     case 'VALIDATION_ERROR':
+    case 'UNKNOWN_FIELD':
     case 'INVALID_JSON':
     case 'IDEMPOTENCY_KEY_REQUIRED':
     case 'INVALID_CENTS':

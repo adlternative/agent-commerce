@@ -1874,6 +1874,10 @@
                   },
                   "active": {
                     "type": "boolean"
+                  },
+                  "stock": {
+                    "type": "integer",
+                    "minimum": 0
                   }
                 },
                 "required": [
@@ -1972,6 +1976,10 @@
                   },
                   "active": {
                     "type": "boolean"
+                  },
+                  "stock": {
+                    "type": "integer",
+                    "minimum": 0
                   }
                 },
                 "required": [
@@ -3120,6 +3128,10 @@
                   },
                   "active": {
                     "type": "boolean"
+                  },
+                  "stock": {
+                    "type": "integer",
+                    "minimum": 0
                   }
                 },
                 "required": [
