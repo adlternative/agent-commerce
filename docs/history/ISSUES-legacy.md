@@ -1,3 +1,7 @@
+# 历史压测负载定义，已不适用
+
+> 本文件由根目录 `ISSUES.md` 迁入归档。原 8 条任务对应 GitHub issues #1–#8（`[task-N]` 旧 W1–W8 skeleton），指向已不存在的路径（如 `src/lib/pricing.ts`、`src/pages/Checkout.tsx`）。平台能力已由 W1–W9 / ACP 工作流落地，请以仓库根目录 `TASKS.md` 与 `docs/` 现行文档为准。
+
 # 分层测试任务书（8 个）
 
 给 Cursor Cloud Agents 的并发负载。每个任务都要独立产出 PR，不许互相依赖。

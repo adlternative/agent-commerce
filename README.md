@@ -55,6 +55,7 @@ npm run mcp
 - [API.md](docs/API.md) — HTTP 路由与鉴权
 - [MCP.md](docs/MCP.md) — 工具 / resources / prompts 与客户端配置
 - [AI-INTEGRATION.md](docs/AI-INTEGRATION.md) — 能力发现、分页、审计、限流
+- [ISSUES-legacy.md](docs/history/ISSUES-legacy.md) — 历史压测负载定义（已不适用；原根目录 `ISSUES.md`）
 
 ## 脚本
 
