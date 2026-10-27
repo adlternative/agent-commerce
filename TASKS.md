@@ -32,7 +32,8 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-30 | Docker JWT no insecure defaults (#680) | Done | #684 @ `779552c`; require JWT_SECRET in compose; demos default off |
 | ACP-31 | Merchant product list stock fields (#681) | Done | #685 @ `fe49285`; onHand/reserved/available on GET /api/merchant/products |
 | ACP-32 | Dockerfile without apt/tini (#682) | Done | #683 @ `0ad9305`; no runtime apt; compose `init: true` + node fetch healthcheck |
-| ACP-33 | Product positioning docs + README | In progress | `docs/product/{POSITIONING,WHY-OPEN,COMPARISON,INTEGRATION}.md` + root README rewrite |
+| ACP-33 | Product positioning docs + README | Done | #686 @ `b0c5e01`; `docs/product/*` + README rewrite |
+| ACP-34 | Engineering norms + ADRs | In progress | `docs/engineering/` CONTRIBUTING, SECURITY, adr/0001–0006 |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.
