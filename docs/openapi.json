@@ -513,6 +513,10 @@
                   "properties": {
                     "ok": {
                       "type": "boolean"
+                    },
+                    "store": {
+                      "type": "string",
+                      "description": "Persistence backend when known (sqlite | json)"
                     }
                   }
                 }
@@ -546,6 +550,10 @@
                   "properties": {
                     "ok": {
                       "type": "boolean"
+                    },
+                    "store": {
+                      "type": "string",
+                      "description": "Persistence backend when known (sqlite | json)"
                     }
                   }
                 }

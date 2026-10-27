@@ -23,7 +23,20 @@ describe('healthz / readyz / unmatched 404', () => {
   it('GET /healthz returns 200 without auth', async () => {
     const res = await fetch(`${baseUrl}/healthz`)
     expect(res.status).toBe(200)
+    // No store configured for in-memory unit boots — body stays { ok: true }.
     await expect(res.json()).resolves.toEqual({ ok: true })
+  })
+
+  it('GET /healthz includes store when configured', async () => {
+    const withStore = createAppServer({ repo: new MemoryRepository(), store: 'sqlite' })
+    const { baseUrl: url } = await withStore.listen(0)
+    try {
+      const res = await fetch(`${url}/healthz`)
+      expect(res.status).toBe(200)
+      await expect(res.json()).resolves.toEqual({ ok: true, store: 'sqlite' })
+    } finally {
+      await withStore.close()
+    }
   })
 
   it('GET /readyz returns 200 after a real store probe (no auth)', async () => {

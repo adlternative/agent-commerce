@@ -12,9 +12,10 @@
     "build:server": "tsc -p tsconfig.server.json",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "test": "vitest run && playwright test",
+    "test": "vitest run && playwright test && playwright test -c playwright.json-legacy.config.ts",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test && playwright test -c playwright.json-legacy.config.ts",
+
     "preserver": "npm run build:server",
     "server": "node dist-server/server/index.js",
     "dev:all": "echo 'Run terminal A: npm run server  |  terminal B: npm run dev'",

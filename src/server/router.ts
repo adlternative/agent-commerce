@@ -40,6 +40,11 @@ export type Observability = {
   metrics?: HttpMetrics
   /** When set, GET /readyz exercises this probe (must actually touch the store). */
   readiness?: () => Promise<void>
+  /**
+   * Persistence backend name exposed on GET /health and /healthz
+   * (e.g. `sqlite` | `json`). Omitted when unset (in-memory unit tests).
+   */
+  store?: string
 }
 
 type Route = {
@@ -140,6 +145,7 @@ export class Router {
   private readonly logger: Logger
   private readonly metrics: HttpMetrics
   private readonly readiness?: () => Promise<void>
+  private readonly store?: string
 
   constructor(auth: AuthConfig, ai: AiAdapters = {}, obs: Observability = {}) {
     this.auth = auth
@@ -147,6 +153,7 @@ export class Router {
     this.logger = obs.logger ?? createLogger({ service: 'agent-commerce' })
     this.metrics = obs.metrics ?? new HttpMetrics()
     this.readiness = obs.readiness
+    this.store = obs.store
   }
 
   getMetrics(): HttpMetrics {
@@ -209,7 +216,9 @@ export class Router {
       // Public probes / docs — must bypass auth (and must be registered before matching).
       if (method === 'GET' && (url.pathname === '/health' || url.pathname === '/healthz')) {
         metricPath = url.pathname
-        sendJson(res, 200, { ok: true }, corsHeaders(traceId))
+        const body: { ok: true; store?: string } = { ok: true }
+        if (this.store) body.store = this.store
+        sendJson(res, 200, body, corsHeaders(traceId))
         status = 200
         return
       }

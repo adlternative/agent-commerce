@@ -36,6 +36,7 @@ const app = createAppServer({
   openApiOutPath: openApiOut,
   seedDemo: true,
   auth,
+  store: opened.backend,
 })
 
 const { baseUrl } = await app.listen(port)
