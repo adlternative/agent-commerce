@@ -25,13 +25,14 @@ Repo: [adlternative/agent-commerce](https://github.com/adlternative/agent-commer
 | ACP-21 | Docker + configurable `DATA_DIR` | Done | #671 @ `0869e8f`; DATA_DIR+Docker; 35 files / 188 unit + 3 e2e |
 | ACP-23 | MCP Streamable HTTP real client smoke | Done | #669 @ `714503a`; SDK StreamableHTTP client smoke; `test:mcp:http` + CI; 36/189 + 3 e2e |
 | ACP-25 | Clean legacy skeleton issues #1–#8 | Done | #668 @ `c44c16a`; archive ISSUES.md; #1–#8 need user close (403); 33/183 + 3 e2e |
-| ACP-22 | Returns/refund UI + E2E | In progress | Customer 申请退货 (lines+reason); merchant approve/reject + restock; Playwright full chain |
-| ACP-24 | Merchant stock + promotions UI | In progress | Create-product `stock`; promotions list/create/deactivate; Playwright stock+满减 |
-| ACP-32 | Dockerfile without apt/tini (#682) | In progress | Drop runtime apt; compose `init: true` + node fetch healthcheck; CI docker build |
-| ACP-28 | MCP Streamable HTTP authentication (#676) | In progress | Reuse REST auth; merchant tool RBAC; smoke auth assertions |
-| ACP-30 | Docker JWT no insecure defaults (#680) | In progress | Require JWT_SECRET in compose; ALLOW_DEMO_TOKENS default 0; forged `dev-docker-change-me` → 401 |
-| ACP-29 | Playwright e2e on SQLite not JSON (#677) | In progress | DATA_DIR per worker; /healthz store=sqlite; dedicated JSON legacy spec |
-| ACP-31 | Merchant product list stock fields (#681) | In progress | onHand/reserved/available on GET /api/merchant/products; batch IN; UI columns |
+| ACP-22 | Returns/refund UI + E2E | Done | #672 @ `aa5f818`; customer return + merchant approve/reject + E2E |
+| ACP-24 | Merchant stock + promotions UI | Done | #674 @ `72273c3`; create-product stock + promotions panel |
+| ACP-28 | MCP Streamable HTTP authentication (#676) | Done | #678 @ `6ef3519`; REST auth on MCP HTTP; merchant tool RBAC |
+| ACP-29 | Playwright e2e on SQLite not JSON (#677) | Done | #679 @ `576efd3`; DATA_DIR per worker; healthz store=sqlite; JSON legacy config |
+| ACP-30 | Docker JWT no insecure defaults (#680) | Done | #684 @ `779552c`; require JWT_SECRET in compose; demos default off |
+| ACP-31 | Merchant product list stock fields (#681) | Done | #685 @ `fe49285`; onHand/reserved/available on GET /api/merchant/products |
+| ACP-32 | Dockerfile without apt/tini (#682) | Done | #683 @ `0ad9305`; no runtime apt; compose `init: true` + node fetch healthcheck |
+| ACP-33 | Product positioning docs + README | In progress | `docs/product/{POSITIONING,WHY-OPEN,COMPARISON,INTEGRATION}.md` + root README rewrite |
 
 ## Rules
 - Only this repo; never create/fork repos. Stop on push failure.
