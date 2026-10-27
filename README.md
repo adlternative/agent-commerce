@@ -2,7 +2,25 @@
 
 面向 **人 + 商家 + AI Agent** 的完整电商服务：同一套领域模型，同时提供 HTTP API、MCP 工具，以及顾客前台 / 商家后台。
 
-## 快速开始
+## Docker 一条命令跑起来
+
+```bash
+# 本地演示：JWT_SECRET + 演示 token；数据落在 named volume → /app/data
+JWT_SECRET=dev-docker-change-me ALLOW_DEMO_TOKENS=1 docker compose up --build -d
+
+# 健康检查 + 烟雾
+curl -sS http://127.0.0.1:8787/healthz
+curl -sS -H 'authorization: Bearer customer-token' http://127.0.0.1:8787/api/customer/products
+curl -sS http://127.0.0.1:8787/   # Vite dist（API 同进程静态托管）
+
+docker compose down
+```
+
+- 镜像：多阶段构建（`npm ci` → frontend `build` + `build:server`）；运行时仅 `dist/` + `dist-server/` + `node_modules` + **tini**。
+- 持久化：`DATA_DIR=/app/data`（volume `commerce-data`）；SQLite 默认 `$DATA_DIR/commerce.sqlite`。
+- **生产必须设强随机 `JWT_SECRET`**；演示 Bearer 仅在 `ALLOW_DEMO_TOKENS=1`（或非 production）时可用。
+
+## 快速开始（本地 npm）
 
 ```bash
 npm ci
@@ -14,19 +32,22 @@ npm run build
 # 先编译后端到 dist-server/（server / mcp 脚本会自动 prebuild）
 npm run build:server
 
-# API（默认 :8787，写入 data/commerce.sqlite，并种子演示商品）
-# 若存在旧的 data/commerce.json 且 SQLite 为空，启动时自动导入一次
+# API（默认 :8787，写入 $DATA_DIR/commerce.sqlite，DATA_DIR 默认 ./data，并种子演示商品）
+# 若存在旧的 commerce.json 且 SQLite 为空，启动时自动导入一次
 # 非 production：未设 JWT_SECRET 时使用进程内随机 secret（不对外暴露）
 JWT_SECRET=dev-only-change-me npm run server
+# 例：DATA_DIR=/tmp/ac-data JWT_SECRET=dev-only-change-me npm run server
 
 # 顾客前台 + 商家后台（Vite :5173，代理 /api → API）
 # Vite 代理读 E2E_API_PORT（默认 8787）；E2E / 改端口时请与 API 的 PORT 对齐
 npm run dev
 # 打开 http://localhost:5173/ 与 http://localhost:5173/#/merchant
 
-# MCP stdio（同样跑编译产物）
+# MCP stdio（同样跑编译产物；同样尊重 DATA_DIR）
 npm run mcp
 ```
+
+`DATA_DIR`（默认 `./data`）：HTTP / MCP / migrate 的存储根目录；未设 `DATA_PATH` 时 SQLite 为 `$DATA_DIR/commerce.sqlite`。`DATA_PATH` 仍可强制指定文件路径。
 
 `E2E_API_PORT`：Vite 开发代理与 Playwright E2E 用它定位 API 源（默认 **8787**）。跑 `npm test` / `test:e2e` 时 Playwright 会自动解析空闲端口并注入；本地 `npm run server` + `npm run dev` 若 API 不在 8787，两边都要设同一值（例如 `E2E_API_PORT=8790 PORT=8790`）。
 

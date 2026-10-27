@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-server
+data
+.git
+.github
+test-results
+playwright-report
+blob-report
+playwright/.cache
+*.md
+!README.md
+e2e
+tests
+.DS_Store

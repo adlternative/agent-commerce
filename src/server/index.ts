@@ -1,5 +1,5 @@
 import { createAppServer } from './create-server.js'
-import { createRepository } from '../repo/create-repository.js'
+import { createRepository, resolveDataDir } from '../repo/create-repository.js'
 import {
   buildAuthConfig,
   demoCredentialsEnabled,
@@ -41,6 +41,7 @@ const app = createAppServer({
 const { baseUrl } = await app.listen(port)
 console.log(`agent-commerce API listening on ${baseUrl}`)
 console.log(`store: ${opened.backend} @ ${opened.path}`)
+console.log(`DATA_DIR: ${resolveDataDir()}`)
 console.log(`openapi: ${baseUrl}/openapi.json`)
 console.log(
   `auth: JWT_SECRET ${process.env.JWT_SECRET?.trim() ? 'from env' : 'ephemeral (non-production)'}; demo credentials ${
