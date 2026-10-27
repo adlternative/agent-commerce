@@ -197,6 +197,27 @@ export class SqliteRepository implements CommerceRepository {
     }
   }
 
+  /**
+   * Batch stock lookup — one `WHERE product_id IN (...)` statement (no N+1).
+   * Listing 50 products uses this once alongside the products query (2 SQL total).
+   */
+  async getStockByProductIds(productIds: readonly string[]): Promise<StockLevel[]> {
+    if (productIds.length === 0) return []
+    const placeholders = productIds.map(() => '?').join(', ')
+    const rows = this.db
+      .prepare(
+        `SELECT product_id, on_hand, reserved FROM stock WHERE product_id IN (${placeholders})`,
+      )
+      .all(...productIds) as Array<Record<string, unknown>>
+    return rows.map(
+      (r): StockLevel => ({
+        productId: String(r.product_id),
+        onHand: Number(r.on_hand),
+        reserved: Number(r.reserved),
+      }),
+    )
+  }
+
   private runExclusive<T>(fn: () => T | Promise<T>): Promise<T> {
     const run = this.chain.then(() => fn())
     this.chain = run.then(

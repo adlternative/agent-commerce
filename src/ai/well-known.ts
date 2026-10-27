@@ -89,6 +89,8 @@ export function buildAiCommerceDiscovery(baseUrl = 'http://localhost:8787') {
         metricsPath: '/metrics',
         structuredLogs: 'json_lines',
       },
+      sellable:
+        'Judge sellable from `available` on GET /api/agent/products (and /api/customer/products); available > 0 is sellable — blind add-to-cart when available=0 returns 409 INSUFFICIENT_STOCK.',
     },
     errorCodes: [
       'UNAUTHORIZED',

@@ -33,10 +33,12 @@ Document includes:
 
 **Shopper** (`agent:customer` / `agent-token`)
 
-1. `search_products` / `GET /api/agent/products?q=`  
-2. `check_inventory`  
+1. `search_products` / `GET /api/agent/products?q=` — each list item includes integer **`available`** (sellable = onHand − reserved). Skip SKUs with `available: 0`.  
+2. Optional `check_inventory` for full `{ onHand, reserved, available }` detail.  
 3. `create_cart` → `add_cart_item` → optional `apply_promotion` → `quote_cart`  
 4. `place_order` → (HTTP) pay → `get_order`
+
+Sellable rule: prefer list-field `available > 0`. Blind add-to-cart when stock is exhausted returns **`409 INSUFFICIENT_STOCK`** (do not retry without lowering qty or picking another SKU).
 
 **Merchant** (`agent:merchant` / `agent-merchant-token` or `merchant-token`)
 

@@ -100,9 +100,10 @@ describe('AI HTTP adapter integration', () => {
     expect(res.status).toBe(200)
     const doc = (await res.json()) as {
       mcp: { tools: unknown[] }
-      conventions: { idempotencyHeader: string }
+      conventions: { idempotencyHeader: string; sellable: string }
     }
     expect(doc.conventions.idempotencyHeader).toBe('Idempotency-Key')
+    expect(doc.conventions.sellable).toMatch(/available/)
     expect(doc.mcp.tools.length).toBe(17)
     expect(buildAiCommerceDiscovery().wellKnown).toBe('/.well-known/ai-commerce.json')
   })

@@ -188,7 +188,56 @@ describe('HTTP API integration', () => {
       idempotencyKey: 'oversell-add',
       body: { productId, quantity: 1 },
     })
-    expect(add.status).toBe(400)
+    expect(add.status).toBe(409)
+    expect(add.json).toMatchObject({
+      code: 'INSUFFICIENT_STOCK',
+      retryable: false,
+    })
+  })
+
+  it('lists available on agent products and rejects add-to-cart when available=0 with 409', async () => {
+    const created = await api(baseUrl, 'POST', '/api/merchant/products', {
+      token: 'merchant-token',
+      idempotencyKey: 'oos-prod',
+      body: {
+        sku: 'OOS-01',
+        name: 'Out Of Stock Widget',
+        priceCents: 900,
+        tags: ['test'],
+        agentNotes: 'Zero-stock fixture for available field.',
+      },
+    })
+    expect(created.status).toBe(200)
+    const oosId = created.json.id as string
+    // Product create seeds stock at onHand=0 — do not adjust up.
+
+    const listed = await api(baseUrl, 'GET', '/api/agent/products?q=Out%20Of%20Stock', {
+      token: 'agent-token',
+    })
+    expect(listed.status).toBe(200)
+    const items = listed.json as unknown as Array<Record<string, unknown>>
+    expect(Array.isArray(items)).toBe(true)
+    const row = items.find((p) => p.id === oosId)
+    expect(row).toBeTruthy()
+    expect(row).toMatchObject({ available: 0 })
+
+    const customerList = await api(baseUrl, 'GET', '/api/customer/products?q=Out%20Of%20Stock')
+    expect(customerList.status).toBe(200)
+    const customerItems = customerList.json as unknown as Array<Record<string, unknown>>
+    expect(customerItems.find((p) => p.id === oosId)).toMatchObject({ available: 0 })
+
+    const cart = await api(baseUrl, 'POST', '/api/agent/carts', {
+      token: 'agent-token',
+      idempotencyKey: 'oos-cart',
+      body: {},
+    })
+    expect(cart.status).toBe(200)
+    const add = await api(baseUrl, 'POST', `/api/agent/carts/${cart.json.id}/items`, {
+      token: 'agent-token',
+      idempotencyKey: 'oos-add',
+      body: { productId: oosId, quantity: 1 },
+    })
+    expect(add.status).toBe(409)
     expect(add.json).toMatchObject({
       code: 'INSUFFICIENT_STOCK',
       retryable: false,

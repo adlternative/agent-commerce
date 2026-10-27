@@ -84,6 +84,7 @@ function statusForCode(code: string): number {
     case 'PAYMENT_NOT_FOUND':
       return 404
     case 'IDEMPOTENCY_KEY_REUSE':
+    case 'INSUFFICIENT_STOCK':
       return 409
     case 'STORE_NOT_READY':
       return 503

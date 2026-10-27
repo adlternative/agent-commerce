@@ -54,6 +54,27 @@ export function availableQty(stock: StockLevel): number {
 }
 
 /**
+ * Batch sellable qty for many products in one pass (no N+1 inventory lookups).
+ * Missing stock rows map to `0`. Callers should load stock once
+ * (`WHERE product_id IN (...)` or a single `SELECT * FROM stock`).
+ */
+export function batchAvailableByProductIds(
+  stock: readonly StockLevel[],
+  productIds: readonly string[],
+): Map<string, number> {
+  const want = new Set(productIds)
+  const byId = new Map<string, number>()
+  for (const row of stock) {
+    if (!want.has(row.productId)) continue
+    byId.set(row.productId, availableQty(row))
+  }
+  for (const id of productIds) {
+    if (!byId.has(id)) byId.set(id, 0)
+  }
+  return byId
+}
+
+/**
  * Pure reserve: increases reserved if available. Does not mutate input.
  * Caller must serialize concurrent calls (see InventoryLedger).
  */
