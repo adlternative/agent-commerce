@@ -60,9 +60,9 @@ In-repo files:
 
 | File | Role |
 |------|------|
-| [`deploy/Caddyfile`](../../deploy/Caddyfile) | `api.{$DOMAIN}` → `api:8787`; optional `mcp.{$DOMAIN}` → `mcp:8790`; `encode zstd gzip`; security headers; body size limit; **public `/metrics` → 404** |
-| [`deploy/docker-compose.caddy.yml`](../../deploy/docker-compose.caddy.yml) | Caddy as a compose service |
-| [`deploy/.env.example`](../../deploy/.env.example) | `JWT_SECRET`, `DOMAIN`, `ACME_EMAIL`, `ALLOW_DEMO_TOKENS=0` + how to generate each |
+| `deploy/Caddyfile` | `api.{$DOMAIN}` → `api:8787`; optional `mcp.{$DOMAIN}` → `mcp:8790`; `encode zstd gzip`; security headers; body size limit; **public `/metrics` → 404** |
+| `deploy/docker-compose.caddy.yml` | Caddy as a compose service |
+| `deploy/.env.example` | `JWT_SECRET`, `DOMAIN`, `ACME_EMAIL`, `ALLOW_DEMO_TOKENS=0` + how to generate each |
 
 ```bash
 cp deploy/.env.example deploy/.env   # fill real values (placeholders only in git)
@@ -72,14 +72,14 @@ docker compose -f docker-compose.yml -f deploy/docker-compose.caddy.yml up --bui
 
 Lab without DNS: set `tls internal` in the site block, or skip Caddy and hit `:8787` directly (single topology).
 
-**MCP HTTP** is **not** public by default (no `mcp` service in root compose). To expose: run MCP on **8790** as a second service, point `mcp.$DOMAIN` (already in the Caddyfile), and keep **separate edge auth** in addition to app JWT. See [RUNBOOK.md](./RUNBOOK.md) and [`deploy/README-fly.md`](../../deploy/README-fly.md).
+**MCP HTTP** is **not** public by default (no `mcp` service in root compose). To expose: run MCP on **8790** as a second service, point `mcp.$DOMAIN` (already in the Caddyfile), and keep **separate edge auth** in addition to app JWT. See [RUNBOOK.md](./RUNBOOK.md) and `deploy/README-fly.md`.
 
 ## Fly.io (shipped)
 
 | File | Role |
 |------|------|
-| [`deploy/fly.toml`](../../deploy/fly.toml) | Single instance; `internal_port = 8787`; `[mounts]` → `/app/data`; `DATA_DIR` / `STATIC_DIR`; `min_machines_running = 1`; health `/healthz`; **no** `JWT_SECRET` in toml |
-| [`deploy/README-fly.md`](../../deploy/README-fly.md) | Zero-to-live: launch → volume → secrets → deploy → verify |
+| `deploy/fly.toml` | Single instance; `internal_port = 8787`; `[mounts]` → `/app/data`; `DATA_DIR` / `STATIC_DIR`; `min_machines_running = 1`; health `/healthz`; **no** `JWT_SECRET` in toml |
+| `deploy/README-fly.md` | Zero-to-live: launch → volume → secrets → deploy → verify |
 
 ## Observability
 
@@ -93,9 +93,9 @@ Lab without DNS: set `tls internal` in the site block, or skip Caddy and hit `:8
 
 | File | Role |
 |------|------|
-| [`deploy/docker-compose.observability.yml`](../../deploy/docker-compose.observability.yml) | Prometheus + Grafana; scrape `api:8787/metrics`; ports bound to `127.0.0.1` |
-| [`deploy/prometheus.yml`](../../deploy/prometheus.yml) | Minimal scrape config |
-| [`deploy/grafana/provisioning/datasources/prometheus.yml`](../../deploy/grafana/provisioning/datasources/prometheus.yml) | Provisioned Prometheus datasource |
+| `deploy/docker-compose.observability.yml` | Prometheus + Grafana; scrape `api:8787/metrics`; ports bound to `127.0.0.1` |
+| `deploy/prometheus.yml` | Minimal scrape config |
+| `deploy/grafana/provisioning/datasources/prometheus.yml` | Provisioned Prometheus datasource |
 
 ```bash
 export JWT_SECRET="$(openssl rand -hex 32)"
@@ -112,9 +112,9 @@ JSON logs: use `docker compose logs -f api` or ship stdout to any free log stack
 
 | File | Role |
 |------|------|
-| [`deploy/backup.sh`](../../deploy/backup.sh) | `sqlite3 .backup` via toolbox image (runtime is apt-free); timestamped files; retain N; non-zero on failure; cron-callable |
-| [`deploy/restore.sh`](../../deploy/restore.sh) | Restore named backup; safety backup first; post-restore `/readyz` (fallback `/healthz`) |
-| [`deploy/crontab.example`](../../deploy/crontab.example) | One daily cron line |
+| `deploy/backup.sh` | `sqlite3 .backup` via toolbox image (runtime is apt-free); timestamped files; retain N; non-zero on failure; cron-callable |
+| `deploy/restore.sh` | Restore named backup; safety backup first; post-restore `/readyz` (fallback `/healthz`) |
+| `deploy/crontab.example` | One daily cron line |
 
 ```bash
 ./deploy/backup.sh

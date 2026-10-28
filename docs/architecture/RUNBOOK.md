@@ -5,7 +5,7 @@ description: First deploy, day-2 release/rollback, troubleshooting, backup drill
 
 # Ops runbook (ACP-38)
 
-Executable kit lives under [`deploy/`](https://github.com/adlternative/agent-commerce/tree/main/deploy). Architecture bounds: [INFRA.md](./INFRA.md). Longer context: [DEPLOYMENT.md](./DEPLOYMENT.md).
+Executable kit lives under `deploy/`. Architecture bounds: [INFRA.md](./INFRA.md). Longer context: [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 **Cited defaults from this repo:** API `PORT`/`internal_port` **8787**, `DATA_DIR=/app/data` → `$DATA_DIR/commerce.sqlite`, `STATIC_DIR=/app/dist`, probes `GET /healthz` + `GET /readyz`, metrics `GET /metrics`, discovery `/.well-known/ai-commerce.json`, OpenAPI `/openapi.json`. MCP Streamable HTTP optional on **8790** (not in default compose).
 
@@ -44,7 +44,7 @@ docker compose -f docker-compose.yml \
 
 ### C. Fly.io
 
-Follow [`deploy/README-fly.md`](../../deploy/README-fly.md): `fly launch --no-deploy` → `fly volumes create ac_data --size 1` → `fly secrets set JWT_SECRET=…` → `fly deploy` → verify `/healthz`, `/openapi.json`, `/.well-known/ai-commerce.json`.
+Follow `deploy/README-fly.md`: `fly launch --no-deploy` → `fly volumes create ac_data --size 1` → `fly secrets set JWT_SECRET=…` → `fly deploy` → verify `/healthz`, `/openapi.json`, `/.well-known/ai-commerce.json`.
 
 ## Day-2 operations
 
