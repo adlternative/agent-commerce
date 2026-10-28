@@ -9,3 +9,6 @@ blob-report
 playwright/.cache
 docs/.vitepress/cache
 docs/.vitepress/dist
+deploy/backups/*.sqlite
+deploy/backups/cron.log
+deploy/.env

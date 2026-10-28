@@ -1,0 +1,30 @@
+# Overlay: Caddy TLS gateway in front of api (ACP-38).
+# Usage (from repo root):
+#   set -a && source deploy/.env.example  # or copy to .env and fill real values
+#   export JWT_SECRET DOMAIN ACME_EMAIL
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.caddy.yml up --build -d
+#
+# Optional MCP hostname (mcp.$DOMAIN) needs a separate `mcp` service on :8790 —
+# not included here; API-only is the default public surface.
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN — e.g. example.com}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL — e.g. admin@example.com}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:

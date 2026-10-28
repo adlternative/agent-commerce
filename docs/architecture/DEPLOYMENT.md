@@ -5,7 +5,7 @@ description: Self-host Agent Commerce — compose, gateway, observability, backu
 
 # Deployment runbook
 
-Default path: **self-host + free tier only** (no paid SaaS, no paid domain required). Decisions and scale bounds: [INFRA.md](./INFRA.md).
+Default path: **self-host + free tier only** (no paid SaaS, no paid domain required). Decisions and scale bounds: [INFRA.md](./INFRA.md). Day-2 ops: [RUNBOOK.md](./RUNBOOK.md).
 
 > Docs-site (VitePress) hosting is separate: see [部署（文档站）](/deploy).
 
@@ -30,6 +30,10 @@ Facts from the repo:
 - **Metrics:** `GET /metrics` Prometheus text 0.0.4 (`src/server/metrics.ts`, routed in `src/server/router.ts`).
 - **Logs:** structured JSON lines on stdout (`src/server/logger.ts`).
 
+## Red line — SQLite single-instance only
+
+Ship **one** API writer. Do not multi-replica against one SQLite file. Move to Postgres when you need shared storage across replicas, managed HA/PITR, or write load beyond one process — adapter **尚未实现** (see [INFRA.md](./INFRA.md)).
+
 ## Gateway (front proxy)
 
 ### Why put a proxy in front?
@@ -50,48 +54,32 @@ The Node process can bind `0.0.0.0:8787` and serve API + static, but a front pro
 | Traefik | Docker label routing, LE built-in | Heavier; more moving parts for one service | Free OSS |
 | Cloudflare (free) | CDN, DDoS, optional Tunnel (no open ports) | External dependency; Tunnel config outside repo | Free plan usable; **paid domains not required** if you use Tunnel + local hostname or a free DDNS |
 
-### Pick: Caddy
+### Pick: Caddy (shipped)
 
-Recommended for the small topology: one binary, automatic HTTPS when DNS points at the host.
+In-repo files:
 
-Example `Caddyfile` (place beside compose; **not shipped in-repo — 尚未实现 as a compose service**):
+| File | Role |
+|------|------|
+| `deploy/Caddyfile` | `api.{$DOMAIN}` → `api:8787`; optional `mcp.{$DOMAIN}` → `mcp:8790`; `encode zstd gzip`; security headers; body size limit; **public `/metrics` → 404** |
+| `deploy/docker-compose.caddy.yml` | Caddy as a compose service |
+| `deploy/.env.example` | `JWT_SECRET`, `DOMAIN`, `ACME_EMAIL`, `ALLOW_DEMO_TOKENS=0` + how to generate each |
 
-```caddyfile
-# Replace with your hostname, or use :443 with tls internal for lab-only.
-{$ACP_HOST:localhost} {
-  encode gzip
-
-  # Keep Prometheus scraping off the public internet when possible.
-  @metrics path /metrics
-  respond @metrics 404
-
-  reverse_proxy api:8787
-}
-```
-
-Compose overlay idea (optional local file — **尚未实现** in root compose):
-
-```yaml
-services:
-  caddy:
-    image: caddy:2.8-alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      ACP_HOST: ${ACP_HOST:-localhost}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-    depends_on:
-      api:
-        condition: service_healthy
-
-volumes:
-  caddy-data:
+```bash
+cp deploy/.env.example deploy/.env   # fill real values (placeholders only in git)
+set -a && source deploy/.env && set +a
+docker compose -f docker-compose.yml -f deploy/docker-compose.caddy.yml up --build -d
 ```
 
 Lab without DNS: set `tls internal` in the site block, or skip Caddy and hit `:8787` directly (single topology).
+
+**MCP HTTP** is **not** public by default (no `mcp` service in root compose). To expose: run MCP on **8790** as a second service, point `mcp.$DOMAIN` (already in the Caddyfile), and keep **separate edge auth** in addition to app JWT. See [RUNBOOK.md](./RUNBOOK.md) and `deploy/README-fly.md`.
+
+## Fly.io (shipped)
+
+| File | Role |
+|------|------|
+| `deploy/fly.toml` | Single instance; `internal_port = 8787`; `[mounts]` → `/app/data`; `DATA_DIR` / `STATIC_DIR`; `min_machines_running = 1`; health `/healthz`; **no** `JWT_SECRET` in toml |
+| `deploy/README-fly.md` | Zero-to-live: launch → volume → secrets → deploy → verify |
 
 ## Observability
 
@@ -101,78 +89,39 @@ Lab without DNS: set `tls internal` in the site block, or skip Caddy and hit `:8
 - Structured logs — JSON on stdout; correlate with `X-Trace-Id` / `traceId`.
 - `GET /healthz`, `GET /readyz` — liveness / SQLite readiness.
 
-### Prometheus + Grafana compose snippet
+### Prometheus + Grafana (shipped overlay)
 
-**尚未实现** as part of the default `docker-compose.yml`. Copy locally when needed (free OSS images only):
+| File | Role |
+|------|------|
+| `deploy/docker-compose.observability.yml` | Prometheus + Grafana; scrape `api:8787/metrics`; ports bound to `127.0.0.1` |
+| `deploy/prometheus.yml` | Minimal scrape config |
+| `deploy/grafana/provisioning/datasources/prometheus.yml` | Provisioned Prometheus datasource |
 
-```yaml
-# compose.observability.yml — docker compose -f docker-compose.yml -f compose.observability.yml up -d
-services:
-  prometheus:
-    image: prom/prometheus:v2.54.1
-    volumes:
-      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prom-data:/prometheus
-    # Bind to localhost only; scrape api on the compose network.
-    ports:
-      - "127.0.0.1:9090:9090"
-    depends_on:
-      api:
-        condition: service_healthy
-
-  grafana:
-    image: grafana/grafana:11.2.0
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-    ports:
-      - "127.0.0.1:3000:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-    depends_on:
-      - prometheus
-
-volumes:
-  prom-data:
-  grafana-data:
+```bash
+export JWT_SECRET="$(openssl rand -hex 32)"
+docker compose -f docker-compose.yml -f deploy/docker-compose.observability.yml up --build -d
 ```
 
-Example `deploy/prometheus.yml` (**尚未实现** in-tree — create beside the overlay):
-
-```yaml
-global:
-  scrape_interval: 15s
-
-scrape_configs:
-  - job_name: agent-commerce
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["api:8787"]
-```
+**`/metrics` must not be public** — align with Caddyfile (404 on `api.$DOMAIN/metrics`). Scrape only on the compose network or localhost.
 
 JSON logs: use `docker compose logs -f api` or ship stdout to any free log stack later. **尚未实现:** log shipper / Loki / Alertmanager wiring.
 
 ## Backup & migrate
 
-### SQLite backup (supported ops pattern)
+### SQLite backup (shipped scripts)
 
-With the API briefly quiet (or accepting that WAL may need a checkpoint):
+| File | Role |
+|------|------|
+| `deploy/backup.sh` | `sqlite3 .backup` via toolbox image (runtime is apt-free); timestamped files; retain N; non-zero on failure; cron-callable |
+| `deploy/restore.sh` | Restore named backup; safety backup first; post-restore `/readyz` (fallback `/healthz`) |
+| `deploy/crontab.example` | One daily cron line |
 
 ```bash
-# volume is mounted at /app/data inside the container
-docker compose exec api \
-  node -e "const fs=require('fs');fs.copyFileSync('/app/data/commerce.sqlite','/app/data/commerce.sqlite.bak')"
-
-# or host-side after locating the named volume
-docker run --rm -v agent-commerce_commerce-data:/data -v "$PWD:/out" alpine \
-  cp /data/commerce.sqlite /out/commerce-$(date +%F).sqlite
+./deploy/backup.sh
+./deploy/restore.sh commerce-YYYYMMDDThhmmssZ.sqlite
 ```
 
-Prefer `sqlite3 .backup` when the `sqlite3` CLI is available on an admin image; the runtime image intentionally has **no apt** (see `Dockerfile`), so use a sidecar/toolbox container for CLI tools.
-
-Restore: stop API → replace `commerce.sqlite` (+ drop stale `-wal`/`-shm` if present) → start API → `curl /readyz`.
-
-**尚未实现:** scheduled backup job, retention policy, or volume snapshot automation in compose.
+Prefer these scripts over ad-hoc `copyFileSync`. Manual host-side copy remains possible for emergencies.
 
 ### Path to Postgres
 
@@ -189,12 +138,12 @@ Rows marked **free-tier capable** run at $0 cash cost when you use OSS + your ow
 | Component | Default | Free-tier capable? | Notes |
 |-----------|---------|--------------------|-------|
 | API + SPA container | Required | **Yes** | Build from this repo; any free VM / laptop / free-tier VPS |
-| SQLite on volume | Required | **Yes** | Local disk / named Docker volume |
-| Caddy | Optional (small+) | **Yes** | OSS; public LE needs a hostname (free DDNS OK) |
-| Nginx / Traefik | Alternative | **Yes** | OSS; not required |
+| SQLite on volume | Required | **Yes** | Local disk / named Docker volume / Fly volume |
+| Caddy | Optional (small+) | **Yes** | OSS; `deploy/docker-compose.caddy.yml` |
+| Nginx / Traefik | Alternative | **Yes** | OSS; not required; `docker/nginx.conf` **尚未实现** |
 | Cloudflare proxy / Tunnel | Optional | **Yes** (free plan) | No paid domain required for Tunnel lab setups |
-| Prometheus | Optional | **Yes** | OSS image; keep scrape port localhost-bound |
-| Grafana | Optional | **Yes** | OSS image; change admin password |
+| Prometheus | Optional | **Yes** | `deploy/docker-compose.observability.yml`; localhost-bound |
+| Grafana | Optional | **Yes** | Provisioned datasource; change admin password |
 | MinIO | Only with blobs | **Yes** (self-host) | **尚未实现** in app; skip until needed |
 | S3-compatible SaaS | Optional | Sometimes free tier | Prefer MinIO self-host to stay $0 |
 | Postgres | Medium topology | Self-host **Yes** / managed often paid | **尚未实现** adapter |
@@ -204,8 +153,8 @@ Rows marked **free-tier capable** run at $0 cash cost when you use OSS + your ow
 ## Checklist
 
 - [ ] `JWT_SECRET` set (strong random); demos off unless `ALLOW_DEMO_TOKENS=1`
-- [ ] Persist `DATA_DIR` / compose volume; confirm `/readyz`
+- [ ] Persist `DATA_DIR` / compose volume / Fly `ac_data`; confirm `/readyz`
 - [ ] Do not run multiple writers on one SQLite file
 - [ ] If public: Caddy (or Tunnel) in front; block public `/metrics`
-- [ ] Backup SQLite before upgrades
+- [ ] Run `./deploy/backup.sh` before upgrades; install `deploy/crontab.example` when durable
 - [ ] Add Prometheus/Grafana overlay only when you will look at dashboards

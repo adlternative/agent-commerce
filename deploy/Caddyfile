@@ -1,0 +1,56 @@
+# Caddy gateway for Agent Commerce (ACP-38).
+# Env (see deploy/.env.example): DOMAIN, ACME_EMAIL
+# api.$DOMAIN → api:8787  |  optional mcp.$DOMAIN → mcp:8790
+#
+# /metrics must NOT be public: blocked here with 404.
+# Prometheus scrapes http://api:8787/metrics on the compose network
+# (see deploy/docker-compose.observability.yml).
+{
+	email {$ACME_EMAIL}
+}
+
+api.{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	request_body {
+		max_size 10MB
+	}
+
+	# Public liveness is fine; readiness/API go through reverse_proxy below.
+	# Block Prometheus exposition on the public hostname.
+	@metrics path /metrics
+	respond @metrics 404
+
+	reverse_proxy api:8787
+}
+
+# Optional MCP Streamable HTTP edge.
+# Not started by root docker-compose.yml — add an `mcp` service (port 8790)
+# and separate auth / network policy before pointing DNS here.
+# App JWT/API-key auth still applies; treat this host as a second public surface.
+mcp.{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	request_body {
+		max_size 10MB
+	}
+
+	reverse_proxy mcp:8790
+}
