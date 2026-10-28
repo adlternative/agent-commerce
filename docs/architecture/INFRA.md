@@ -7,7 +7,7 @@ description: SQLite bounds, topologies, gateway/storage choices for self-hosted 
 
 Self-host + free-tier only by default. No paid SaaS, no paid domains required for the reference paths below.
 
-Companion: [DEPLOYMENT.md](./DEPLOYMENT.md) (runbooks, gateway config, observability compose, backup).
+Companion: [DEPLOYMENT.md](./DEPLOYMENT.md) (runbooks, gateway config, observability compose, backup), [RUNBOOK.md](./RUNBOOK.md) (day-2 ops).
 
 ## What exists today (cite code)
 
@@ -20,6 +20,10 @@ Companion: [DEPLOYMENT.md](./DEPLOYMENT.md) (runbooks, gateway config, observabi
 | Prometheus `/metrics` | `src/server/metrics.ts` + `GET /metrics` in `src/server/router.ts` (text exposition 0.0.4) |
 | Structured logs | `src/server/logger.ts` — one JSON line per event on stdout (`ts`, `level`, `msg`, `traceId`, …) |
 | Probes | public `GET /healthz`, `GET /readyz` (SQLite RW check) |
+| Caddy gateway overlay | `deploy/Caddyfile` + `deploy/docker-compose.caddy.yml` |
+| Observability overlay | `deploy/docker-compose.observability.yml` + `deploy/prometheus.yml` + Grafana datasource provisioning |
+| Backup / restore | `deploy/backup.sh`, `deploy/restore.sh`, `deploy/crontab.example` |
+| Fly.io single-instance | `deploy/fly.toml` + `deploy/README-fly.md` (`internal_port = 8787`, `[mounts]` → `/app/data`) |
 
 ## Storage
 
@@ -40,9 +44,9 @@ SQLite is the **default and supported** production store for single-node deploys
 | DB size on local disk / volume | GBs OK with WAL + backups | multi-tenant “platform” scale |
 | Horizontal scale-out | no | need shared DB (**尚未实现**) |
 
-### When Postgres
+### Red line — when to move to Postgres
 
-Move off SQLite when **any** of these become true:
+**SQLite single-instance only** for all shipped deploy paths (compose, Caddy overlay, Fly). Move off SQLite when **any** of these become true:
 
 1. You need **multiple API replicas** sharing one store.
 2. You need managed HA, point-in-time recovery, or cross-AZ failover beyond file snapshots.
@@ -84,7 +88,7 @@ Use MinIO (self-host) or an S3-compatible free tier **only when** you add durabl
 
 Matches root `docker-compose.yml` (one `api` service + `commerce-data` volume).
 
-### Small (gateway + optional observability)
+### Small (gateway + optional observability) — shipped overlays
 
 ```
   clients --> [ Caddy :443 ] --> [ api + SQLite ]
@@ -93,7 +97,13 @@ Matches root `docker-compose.yml` (one `api` service + `commerce-data` volume).
                          scrapes /metrics
 ```
 
-Still one writer. Caddy terminates TLS; Prometheus/Grafana are optional compose sidecars (snippet in DEPLOYMENT.md). **尚未实现** as shipped compose services — copy the snippet locally.
+Still one writer. Use:
+
+```bash
+docker compose -f docker-compose.yml \
+  -f deploy/docker-compose.caddy.yml \
+  -f deploy/docker-compose.observability.yml up -d
+```
 
 ### Medium (target; mostly 尚未实现)
 
@@ -109,6 +119,7 @@ Requires Postgres adapter, shared rate-limit/audit, and sticky-or-stateless auth
 ## Default recommendation
 
 1. **Ship single topology** with compose + required `JWT_SECRET`.
-2. Add **Caddy** when you need TLS or a stable public hostname.
-3. Add **Prometheus + Grafana** when you care about dashboards (app already exposes `/metrics` + JSON logs).
-4. Defer Postgres / MinIO / Redis until the bounds above are hit — all marked **尚未实现** in code.
+2. Add **Caddy** (`deploy/docker-compose.caddy.yml`) when you need TLS or a stable public hostname.
+3. Add **Prometheus + Grafana** (`deploy/docker-compose.observability.yml`) when you care about dashboards (app already exposes `/metrics` + JSON logs).
+4. Schedule **`deploy/backup.sh`** via `deploy/crontab.example`.
+5. Defer Postgres / MinIO / Redis until the bounds above are hit — all marked **尚未实现** in code.

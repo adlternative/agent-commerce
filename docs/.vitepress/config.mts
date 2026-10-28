@@ -79,6 +79,7 @@ export default defineConfig({
           { text: '安全', link: '/engineering/SECURITY' },
           { text: '应用部署', link: '/architecture/DEPLOYMENT' },
           { text: '基础设施', link: '/architecture/INFRA' },
+          { text: '运维手册', link: '/architecture/RUNBOOK' },
           { text: '文档站（Pages）', link: '/deploy' },
         ],
       },

@@ -1,0 +1,43 @@
+# Fly.io — single-instance SQLite deploy (ACP-38).
+# Deploy from repo root: fly deploy -c deploy/fly.toml
+# JWT_SECRET must be set via `fly secrets set` — never put secrets in this file.
+#
+# Red line: ONE machine only. Do not enable multi-replica autoscale against SQLite.
+
+app = 'agent-commerce'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  NODE_ENV = 'production'
+  HOST = '0.0.0.0'
+  PORT = '8787'
+  DATA_DIR = '/app/data'
+  STATIC_DIR = '/app/dist'
+  ALLOW_DEMO_TOKENS = '0'
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '20s'
+    method = 'GET'
+    path = '/healthz'
+
+[mounts]
+  source = 'ac_data'
+  destination = '/app/data'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

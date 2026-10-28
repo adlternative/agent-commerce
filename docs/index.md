@@ -59,6 +59,7 @@ curl -sS http://127.0.0.1:8787/healthz
 | [ADR](/engineering/adr/README) | 架构决策记录 |
 | [应用部署](/architecture/DEPLOYMENT) | Self-host compose / gateway / backup（免费） |
 | [基础设施](/architecture/INFRA) | SQLite 边界、拓扑、成本表 |
+| [运维手册](/architecture/RUNBOOK) | 首发、发布回滚、排障、备份演练 |
 | [文档站部署](/deploy) | GitHub Pages / Cloudflare Pages（免费） |
 
 ## 硬约定

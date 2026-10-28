@@ -5,7 +5,7 @@ description: Free GitHub Pages or Cloudflare Pages setup for the VitePress docs 
 
 # 部署（文档站）
 
-> 这是 **文档站** 的 Pages/CF 发布说明。要自托管 **Agent Commerce 应用**（Docker / Caddy / Prometheus / SQLite backup），见 [应用部署](/architecture/DEPLOYMENT) 与 [基础设施](/architecture/INFRA)。
+> 这是 **文档站** 的 Pages/CF 发布说明。要自托管 **Agent Commerce 应用**（Docker / Caddy / Prometheus / SQLite backup），见 [应用部署](/architecture/DEPLOYMENT)、[基础设施](/architecture/INFRA) 与 [运维手册](/architecture/RUNBOOK)。
 
 本仓库用 **VitePress** 把 `docs/` 编成静态站。构建产物目录：`docs/.vitepress/dist`。
 
